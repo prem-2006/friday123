@@ -28,6 +28,7 @@ import {
   type Delegate,
 } from '../friday/server/delegate.js';
 import { runHelperTask } from '../friday/server/direct-run.js';
+import type { ObsidianMemory } from '../friday/server/obsidian-memory.js';
 export class Platform {
   private channelStartupFailed = false;
   readonly setupTelemetry: SetupTelemetry;
@@ -40,6 +41,7 @@ export class Platform {
     readonly store: Store,
     readonly workspace: WorkspaceStore,
     readonly config: PlatformConfig,
+    readonly obsidianMemory?: ObsidianMemory,
   ) {
     this.setupTelemetry = new SetupTelemetry(store);
     this.computers = new ComputerService(
@@ -84,6 +86,8 @@ export class Platform {
             dotId,
             true,
             this.setupTelemetry,
+            undefined,
+            this.obsidianMemory,
           ),
       });
       channels.push(slack);
@@ -108,6 +112,7 @@ export class Platform {
               false,
               this.setupTelemetry,
               this.delegate, // FRIDAY: helper Dots
+              this.obsidianMemory,
             ),
           ]),
         ),

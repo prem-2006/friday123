@@ -12,6 +12,7 @@ export interface Settings {
   researchAllowed: boolean;
   memoryAllowed: boolean;
   appsAllowed: boolean;
+  obsidianVaultPath?: string;
 }
 export interface Task {
   id: string;

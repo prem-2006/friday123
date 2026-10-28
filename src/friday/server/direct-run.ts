@@ -12,7 +12,12 @@ import { connectionActionTool } from '../../shared/connection-types.js';
 
 export type DirectPlatform = Pick<
   Platform,
-  'store' | 'workspace' | 'config' | 'setupTelemetry' | 'delegate'
+  | 'store'
+  | 'workspace'
+  | 'config'
+  | 'setupTelemetry'
+  | 'delegate'
+  | 'obsidianMemory'
 >;
 
 export async function runDotDirectly(
@@ -33,6 +38,7 @@ export async function runDotDirectly(
     false,
     platform.setupTelemetry,
     platform.delegate,
+    platform.obsidianMemory,
   );
   agent.threadId = threadId;
   agent.setMessages(messages);

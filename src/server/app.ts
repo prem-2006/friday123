@@ -2,7 +2,7 @@ import { computerRoutes } from './computer-routes.js';
 import { connectionRoutes } from './connection-routes.js';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
-import { timingSafeEqual } from 'node:crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import { Store } from './store.js';
 import { Runner } from './runner.js';
@@ -224,20 +224,45 @@ export function createApp({
         researchAllowed: z.boolean().optional(),
         memoryAllowed: z.boolean().optional(),
         appsAllowed: z.boolean().optional(),
+        obsidianVaultPath: z.string().trim().max(1000).optional(),
       })
       .strict()
       .safeParse(await c.req.json().catch(() => null));
     if (!parsed.success) return c.json({ error: 'Invalid settings.' }, 400);
     const previous = store.settings();
+    const vaultPathChanged =
+      parsed.data.obsidianVaultPath !== undefined &&
+      previous.obsidianVaultPath !== parsed.data.obsidianVaultPath;
+    if (vaultPathChanged && platform?.obsidianMemory) {
+      try {
+        await platform.obsidianMemory.prepareVault(
+          parsed.data.obsidianVaultPath,
+        );
+        for (const memory of store.memories())
+          await platform.obsidianMemory.saveMemory(
+            memory,
+            parsed.data.obsidianVaultPath,
+          );
+      } catch {
+        return c.json(
+          {
+            error:
+              'Could not copy saved memories to that Obsidian vault. Check the folder path and permissions.',
+          },
+          503,
+        );
+      }
+    }
     const settings = store.updateSettings(parsed.data);
     if (
       settings.paused ||
       !settings.researchAllowed ||
       previous.memoryAllowed !== settings.memoryAllowed ||
-      previous.appsAllowed !== settings.appsAllowed
+      previous.appsAllowed !== settings.appsAllowed ||
+      vaultPathChanged
     )
       runner.abortAll();
-    if (settings.paused) voice?.abortAll();
+    if (settings.paused || vaultPathChanged) voice?.abortAll();
     else void voice?.resumePending();
     return c.json(settings);
   });
@@ -251,7 +276,20 @@ export function createApp({
         { error: 'Memory must be between 1 and 2,000 characters.' },
         400,
       );
-    return c.json(store.saveMemory(parsed.data.text), 201);
+    const id = randomUUID();
+    const memory = { id, text: parsed.data.text, createdAt: Date.now() };
+    try {
+      await platform?.obsidianMemory?.saveMemory(memory);
+    } catch {
+      return c.json(
+        {
+          error:
+            'Could not save to Obsidian. Check the vault folder path and permissions.',
+        },
+        503,
+      );
+    }
+    return c.json(store.saveMemory(memory.text, memory.id), 201);
   });
   app.put('/api/memories/:id', async (c) => {
     const parsed = z
@@ -263,15 +301,45 @@ export function createApp({
         { error: 'Memory must be between 1 and 2,000 characters.' },
         400,
       );
-    if (!store.memories().some((m) => m.id === c.req.param('id')))
-      return c.json({ error: 'Memory not found.' }, 404);
-    return c.json(store.saveMemory(parsed.data.text, c.req.param('id')));
+    const current = store.memories().find((m) => m.id === c.req.param('id'));
+    if (!current) return c.json({ error: 'Memory not found.' }, 404);
+    const memory = {
+      ...current,
+      text: parsed.data.text,
+      createdAt: Date.now(),
+    };
+    try {
+      await platform?.obsidianMemory?.saveMemory(memory);
+    } catch {
+      return c.json(
+        {
+          error:
+            'Could not update the Obsidian note. Check the vault folder path and permissions.',
+        },
+        503,
+      );
+    }
+    return c.json(store.saveMemory(memory.text, memory.id));
   });
-  app.delete('/api/memories/:id', (c) =>
-    store.deleteMemory(c.req.param('id'))
+  app.delete('/api/memories/:id', async (c) => {
+    const id = c.req.param('id');
+    if (!store.memories().some((m) => m.id === id))
+      return c.json({ error: 'Memory not found.' }, 404);
+    try {
+      await platform?.obsidianMemory?.deleteMemory(id);
+    } catch {
+      return c.json(
+        {
+          error:
+            'Could not remove the Obsidian note. Check the vault folder path and permissions.',
+        },
+        503,
+      );
+    }
+    return store.deleteMemory(id)
       ? c.json({ ok: true })
-      : c.json({ error: 'Memory not found.' }, 404),
-  );
+      : c.json({ error: 'Memory not found.' }, 404);
+  });
   app.onError((error, c) => {
     console.error('API request failed:', error.name);
     return c.json(

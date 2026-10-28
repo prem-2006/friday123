@@ -51,6 +51,9 @@ export function WorkspaceDialog({
       ? (dialog.dot?.appsAllowed ?? false)
       : state.settings.appsAllowed,
   );
+  const [obsidianVaultPath, setObsidianVaultPath] = useState(
+    state.settings.obsidianVaultPath ?? 'data/friday-obsidian',
+  );
   const [composioToolkits, setComposioToolkits] = useState(
     dialog.type === 'dot'
       ? (dialog.dot?.composioToolkits ?? []).join(', ')
@@ -173,6 +176,7 @@ export function WorkspaceDialog({
                 researchAllowed: research,
                 memoryAllowed: memory,
                 appsAllowed: apps,
+                obsidianVaultPath,
               };
             }
             if (dialog.type === 'memory') {
@@ -304,10 +308,12 @@ export function WorkspaceDialog({
                   onChange={(e) => setMemory(e.target.checked)}
                 />
                 <span>
-                  <strong>Use saved memories</strong>
+                  <strong>Use saved memories and conversation recall</strong>
                   <small>
-                    Include your preferences in new turns. Changing permission
-                    stops active work.
+                    Include your preferences and relevant Obsidian notes;
+                    Friday saves voice turns when enabled. Turn this off to
+                    stop recall and voice logging. Changing permission stops
+                    active work.
                   </small>
                 </span>
               </label>
@@ -423,6 +429,29 @@ export function WorkspaceDialog({
                 completed work before retrying an interrupted run.
               </p>
             </>
+          )}
+          {dialog.type === 'settings' && (
+            <fieldset className="space-access-fields">
+              <legend>Obsidian conversation memory</legend>
+              <label className="field-label" htmlFor="obsidian-vault-path">
+                Vault folder path
+              </label>
+              <input
+                id="obsidian-vault-path"
+                value={obsidianVaultPath}
+                maxLength={1000}
+                spellCheck={false}
+                onChange={(event) => setObsidianVaultPath(event.target.value)}
+                placeholder="data/friday-obsidian"
+              />
+              <p className="muted">
+                Friday saves approved memories and, when memory is enabled,
+                successful voice turns under Friday/. It searches Markdown
+                notes for relevant context. Matching excerpts go to your
+                configured model provider. Use an existing vault folder or
+                leave the default path.
+              </p>
+            </fieldset>
           )}
           {dialog.type === 'settings' && (
             <fieldset className="appearance-fields">

@@ -1011,7 +1011,9 @@ function StageSession({
       else setPhase((phase) => (phase === 'hearing' ? 'off' : phase));
       return;
     }
-    if (holding.current || !loaded || voiceReady === false || paused) return;
+    // A failed config probe only disables the clip fallback; a live session
+    // can still be ready to take this key hold.
+    if (holding.current || !loaded || paused) return;
     holding.current = true;
     stopSpeaking();
     setError('');
@@ -1026,6 +1028,19 @@ function StageSession({
         return;
       }
       voice.pushToTalk(true);
+      return;
+    }
+    if (!holding.current) {
+      setPhase((phase) => (phase === 'hearing' ? 'off' : phase));
+      return;
+    }
+    // Show why the hold cannot proceed instead of silently ignoring it.
+    if (voiceReady === false) {
+      holding.current = false;
+      setPhase((phase) => (phase === 'hearing' ? 'off' : phase));
+      setError(
+        'Friday voice is unavailable. Check the app and voice services, then try again.',
+      );
       return;
     }
     const mic = await openMic(false);
@@ -1069,7 +1084,7 @@ function StageSession({
   // Connect the live voice at once when the mic is already allowed, so the
   // first Caps Lock press is heard from its first word.
   useEffect(() => {
-    if (!loaded || voiceReady === false) return;
+    if (!loaded) return;
     void navigator.permissions
       ?.query({ name: 'microphone' as PermissionName })
       .then((state) => {
@@ -1156,7 +1171,7 @@ function StageSession({
             ? 'Let go of Caps Lock when you are done.'
             : 'Friday hears you only while the key is held.'));
   const status =
-    voiceReady === false
+    voiceReady === false && !live.current?.connected
       ? { tone: 'warn' as const, label: 'Voice needs GNANI_API_KEY' }
       : !helpersOnline
         ? { tone: 'warn' as const, label: 'Helpers offline' }
@@ -1232,7 +1247,7 @@ function StageSession({
         type="button"
         className={`stage-orb-hit ${listening ? 'on' : ''}`}
         aria-label="How to talk to Friday"
-        disabled={!loaded || voiceReady === false}
+        disabled={!loaded}
         onClick={() => setSubtitle('Hold Caps Lock while you speak.')}
       />
       {recent.length > 0 && (

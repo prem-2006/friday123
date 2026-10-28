@@ -112,6 +112,29 @@ export function fridayRunRoutes(
         } as Message);
         said = reported;
       }
+      const userTurn = messages.findLast((item) => item.role === 'user');
+      const userText =
+        typeof userTurn?.content === 'string' ? userTurn.content.trim() : '';
+      if (
+        owner &&
+        userTurn &&
+        userText &&
+        said &&
+        platform.obsidianMemory &&
+        platform.store.settings().memoryAllowed &&
+        friday.memoryAllowed
+      ) {
+        try {
+          await platform.obsidianMemory.saveConversation({
+            id: userTurn.id,
+            createdAt: Date.now(),
+            userText,
+            assistantText: said,
+          });
+        } catch {
+          voiceLog('obsidian_save_failed', { kind: 'conversation' });
+        }
+      }
       voiceLog('answered', {
         dot: dotName,
         ms: Math.round(performance.now() - started),

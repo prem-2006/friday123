@@ -21,6 +21,7 @@ const defaults: Settings = {
   researchAllowed: true,
   memoryAllowed: true,
   appsAllowed: false,
+  obsidianVaultPath: 'data/friday-obsidian',
 };
 export class Store {
   private db: DatabaseSync;
