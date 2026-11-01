@@ -246,15 +246,56 @@ def battery() -> dict[str, Any]:
     }
 
 
-def status_sentence(power: dict[str, Any], now: datetime | None = None) -> str:
+def status_sentence(
+    power: dict[str, Any],
+    now: datetime | None = None,
+    ask: str = "all",
+    hinglish: bool = False,
+) -> str:
+    """Only what was asked: battery ("is it charging?"), time, date, or all of it."""
     now = now or datetime.now()
     clock = now.strftime("%I:%M %p").lstrip("0")
-    said = f"It's {clock} on {now.strftime('%A, %d %B')}."
+    day = f"{now.strftime('%A')}, {now.day} {now.strftime('%B')}"
+    if ask == "time":
+        return f"Abhi {clock} ho rahe hain." if hinglish else f"It's {clock}."
+    if ask == "date":
+        return f"Aaj {day} hai." if hinglish else f"Today is {day}."
+    if ask == "battery":
+        return battery_sentence(power, hinglish)
+    said = f"It's {clock} on {day}."
     if power.get("percent") is not None:
         said += f" Battery is at {power['percent']} percent" + (
             ", charging." if power.get("charging") else "."
         )
     return said
+
+
+def battery_sentence(power: dict[str, Any], hinglish: bool = False) -> str:
+    """A straight answer to "is the laptop charging?", with the level."""
+    percent, charging = power.get("percent"), bool(power.get("charging"))
+    if percent is None:
+        return (
+            "Is PC mein battery nahi hai, yeh seedha power par chal raha hai."
+            if hinglish
+            else "This PC has no battery; it runs on mains power."
+        )
+    if charging and percent >= 100:
+        return (
+            "Haan, charger laga hai aur battery full hai."
+            if hinglish
+            else "Yes, it's plugged in and fully charged."
+        )
+    if hinglish:
+        return (
+            f"Haan, laptop charge ho raha hai, abhi {percent} percent hai."
+            if charging
+            else f"Nahi, laptop charge nahi ho raha, abhi {percent} percent hai."
+        )
+    return (
+        f"Yes, the laptop is charging, at {percent} percent."
+        if charging
+        else f"No, it's not charging. Battery is at {percent} percent."
+    )
 
 
 def speak_with_windows(text: str) -> None:
@@ -281,11 +322,55 @@ def lock_screen() -> None:
     ctypes.windll.user32.LockWorkStation()
 
 
-def take_screenshot(folder: Path) -> Path:
+# Windows' own folders (SHGetKnownFolderPath): where Win + PrintScreen saves,
+# and Pictures, which OneDrive or the owner may have moved.
+SCREENSHOTS_FOLDER = "{b7bede81-df94-4682-a7d8-57a52620b86f}"
+PICTURES_FOLDER = "{33E28130-4E1E-4676-835A-98395C3BC3BB}"
+
+
+def known_folder(guid: str) -> Path | None:
+    import ctypes
+    import uuid as _uuid
+    from ctypes import wintypes
+
+    class GUID(ctypes.Structure):
+        _fields_ = [
+            ("Data1", wintypes.DWORD),
+            ("Data2", wintypes.WORD),
+            ("Data3", wintypes.WORD),
+            ("Data4", ctypes.c_ubyte * 8),
+        ]
+
+    raw = _uuid.UUID(guid).bytes_le
+    folder_id = GUID.from_buffer_copy(raw)
+    found = ctypes.c_wchar_p()
+    try:
+        shell = ctypes.windll.shell32
+        if shell.SHGetKnownFolderPath(ctypes.byref(folder_id), 0, None, ctypes.byref(found)):
+            return None
+        path = Path(found.value)
+        ctypes.windll.ole32.CoTaskMemFree(found)
+        return path
+    except (AttributeError, OSError):
+        return None
+
+
+def screenshots_folder() -> Path:
+    """Where Windows saves screenshots: the Screenshots folder in Pictures, wherever that is."""
+    shots = known_folder(SCREENSHOTS_FOLDER)
+    if shots:
+        return shots
+    pictures = known_folder(PICTURES_FOLDER) or Path.home() / "Pictures"
+    return pictures / "Screenshots"
+
+
+def take_screenshot(folder: Path | None = None) -> Path:
     from PIL import ImageGrab
 
+    folder = folder or screenshots_folder()
     folder.mkdir(parents=True, exist_ok=True)
-    path = folder / f"screenshot-{datetime.now().strftime('%Y-%m-%d-%H%M%S')}.png"
+    # Named like Windows' own: "Screenshot 2026-10-30 083512.png".
+    path = folder / f"Screenshot {datetime.now().strftime('%Y-%m-%d %H%M%S')}.png"
     ImageGrab.grab(all_screens=True).save(path)
     return path
 

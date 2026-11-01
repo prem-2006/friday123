@@ -38,6 +38,17 @@ function oklabToRgb([L, a, b]: number[]) {
   ].map((c) => Math.min(1, Math.max(0, toSrgb(c))));
 }
 function parseHex(hex: string) {
+  // FRIDAY: rgb()/rgba() colors too, so the Friday screens get re-tinted.
+  const functional = hex.match(/^rgba?\(([^)]*)\)$/);
+  if (functional) {
+    const parts = functional[1].split(/[\s,/]+/).filter(Boolean);
+    const alpha = parts[3]?.endsWith('%')
+      ? parseFloat(parts[3]) / 100
+      : parts[3] === undefined
+        ? undefined
+        : Number(parts[3]);
+    return { rgb: parts.slice(0, 3).map((c) => Number(c) / 255), alpha };
+  }
   let value = hex.slice(1);
   if (value.length <= 4) value = [...value].map((char) => char + char).join('');
   const channels = value.match(/../g)!.map((pair) => parseInt(pair, 16) / 255);
@@ -52,13 +63,58 @@ const hex = (rgb: number[], alpha?: number) =>
         .padStart(2, '0'),
     )
     .join('');
-// White maps to #1b1b1b, black to #eeeeee. The exponent lifts mid-tones so
-// secondary text keeps AA contrast on the dark canvas.
+// FRIDAY: the Aqua Nebula palette, darkest to lightest. Every color is
+// re-tinted onto it: greys become steel blue and accents follow the palette
+// at their own lightness, while reds, oranges and yellows keep their meaning
+// and greens turn Lagoon teal (#4ca7a1).
+export const NEBULA = ['#061826', '#1c4e75', '#2fa0c6', '#58c9f3', '#bde5ff'];
+type Lch = [number, number, number];
+const toLch = ([L, a, b]: number[]): Lch => [
+  L,
+  Math.hypot(a, b),
+  Math.atan2(b, a),
+];
+const fromLch = ([L, c, h]: Lch) => [L, c * Math.cos(h), c * Math.sin(h)];
+const nebulaStops = NEBULA.map((value) =>
+  toLch(rgbToOklab(parseHex(value).rgb)),
+);
+const LAGOON_HUE = toLch(rgbToOklab(parseHex('#4ca7a1').rgb))[2];
+// Chroma and hue of the palette at a lightness, fading to a pale tint at white.
+function nebulaAt(L: number): [number, number] {
+  const first = nebulaStops[0];
+  const last = nebulaStops[nebulaStops.length - 1];
+  if (L <= first[0]) return [first[1] * Math.max(L / first[0], 0.4), first[2]];
+  if (L >= last[0]) {
+    const t = (L - last[0]) / (1 - last[0]);
+    return [last[1] + (0.02 - last[1]) * t, last[2]];
+  }
+  const i = nebulaStops.findIndex((stop) => stop[0] > L) - 1;
+  const [from, to] = [nebulaStops[i], nebulaStops[i + 1]];
+  const t = (L - from[0]) / (to[0] - from[0]);
+  return [from[1] + (to[1] - from[1]) * t, from[2] + (to[2] - from[2]) * t];
+}
+function nebula(lab: number[]) {
+  const [L, c, h] = toLch(lab);
+  const degrees = ((h * 180) / Math.PI + 360) % 360;
+  if (c > 0.04 && (degrees < 110 || degrees >= 345)) return lab;
+  if (c > 0.04 && degrees < 175) return fromLch([L, c, LAGOON_HUE]);
+  // Deep surfaces carry the full abyss tint; near-white text only a hint.
+  const [tone, hue] = nebulaAt(L);
+  const tint = 0.9 - 0.55 * Math.max(0, (L - 0.6) / 0.4);
+  return fromLch([L, tone * Math.min(1, tint + c / 0.12), hue]);
+}
+// The light theme: same lightness, re-tinted onto the palette.
+export function nebulaColor(value: string) {
+  const { rgb, alpha } = parseHex(value);
+  return hex(oklabToRgb(nebula(rgbToOklab(rgb))), alpha);
+}
+// White maps to Midnight Abyss, black to near-white glacier. The exponent
+// lifts mid-tones so secondary text keeps AA contrast on the dark canvas.
 export function darkColor(value: string) {
   const { rgb, alpha } = parseHex(value);
   const [L, a, b] = rgbToOklab(rgb);
-  const next = 0.95 - 0.73 * L ** 1.3;
-  return hex(oklabToRgb([next, a * 0.85, b * 0.85]), alpha);
+  const next = 0.95 - 0.75 * L ** 1.3;
+  return hex(oklabToRgb(nebula([next, a * 0.85, b * 0.85])), alpha);
 }
 // WCAG relative luminance and contrast, for checking generated pairs.
 const luminance = (rgb: number[]) => {
@@ -79,8 +135,8 @@ const withLightness = (value: string, next: (L: number) => number) => {
 const TEXT_FLOOR = 0.72;
 export const readableText = (value: string) =>
   withLightness(value, (L) => Math.max(L, TEXT_FLOOR));
-const LIGHT_TEXT = '#f2f2f2';
-const DARK_TEXT = '#141414';
+const LIGHT_TEXT = '#eaf6ff';
+const DARK_TEXT = '#061826';
 // A rule that sets both its text and background must stay readable after
 // mapping: pick the better text extreme, then darken a mid-tone background
 // until the pair reaches AA.
@@ -104,8 +160,16 @@ export function darkValue(prop: string, value: string) {
     const color = named[token] ?? token;
     if (!shadow) return darkColor(color);
     const { alpha } = parseHex(color);
-    return hex([0, 0, 0], Math.min(1, (alpha ?? 0.35) * 1.6));
+    return hex([0.004, 0.03, 0.06], Math.min(1, (alpha ?? 0.35) * 1.6));
   });
+}
+// FRIDAY: the light value of a declaration, re-tinted onto the palette.
+const anyColor = /#[0-9a-fA-F]{3,8}\b|\brgba?\([\d\s.,%/]*\)/g;
+export function nebulaValue(value: string) {
+  if (value.includes('url(')) return value;
+  return value.replace(anyColor, (token) =>
+    parseHex(token).rgb.some(Number.isNaN) ? token : nebulaColor(token),
+  );
 }
 const colorProp =
   /^(color|background(-color|-image)?|border(-(top|right|bottom|left))?(-color)?|outline(-color)?|fill|stroke|accent-color|caret-color|text-decoration(-color)?|box-shadow|text-shadow)$/;
@@ -188,6 +252,7 @@ export function excludeFixed(selector: string, containers: string[]) {
     })
     .join(', ');
 }
+const DOTS = /\.mascot|\.dot-body/;
 export function darkTheme(): Plugin {
   return {
     postcssPlugin: 'opendots-dark-theme',
@@ -196,6 +261,10 @@ export function darkTheme(): Plugin {
       const containers: string[] = [];
       const variables: Variables = new Map();
       const rules: { rule: Rule; fixed: boolean }[] = [];
+      // FRIDAY: rules the palette pass leaves alone: the Dot characters and
+      // `/* palette: exact */ ... /* palette: end */` regions.
+      let exact = false;
+      const kept = new Set<object>();
       root.each(function visit(node): void {
         if (node.type === 'comment') {
           // `/* theme: fixed .call-view */` names the surface it keeps.
@@ -205,16 +274,20 @@ export function darkTheme(): Plugin {
             containers.push(start[1]);
           }
           if (/^\s*theme:\s*end\s*$/.test(node.text)) fixed = false;
+          if (/^\s*palette:\s*exact\s*$/.test(node.text)) exact = true;
+          if (/^\s*palette:\s*end\s*$/.test(node.text)) exact = false;
           return;
         }
         if (node.type === 'atrule') {
           // Animations interpolate their own colors; leave them alone.
+          if (exact) kept.add(node);
           if (!/keyframes$/.test((node as AtRule).name))
             (node as AtRule).each(visit);
           return;
         }
         if (node.type === 'rule' && !node.selector.startsWith(DARK)) {
           rules.push({ rule: node, fixed });
+          if (exact || DOTS.test(node.selector)) kept.add(node);
           if (!fixed)
             node.each((decl) => {
               if (decl.type === 'decl' && decl.prop.startsWith('--')) {
@@ -239,6 +312,21 @@ export function darkTheme(): Plugin {
           dark.append(decl);
         rule.after(dark);
       }
+      // Light values last, so dark twins are derived from the originals.
+      root.walkDecls((decl) => {
+        for (
+          let node: { parent?: unknown; type?: string } | undefined =
+            decl.parent;
+          node && node !== root;
+          node = node.parent as typeof node
+        )
+          if (
+            kept.has(node) ||
+            (node.type === 'rule' && (node as Rule).selector.startsWith(DARK))
+          )
+            return;
+        decl.value = nebulaValue(decl.value);
+      });
     },
   };
 }

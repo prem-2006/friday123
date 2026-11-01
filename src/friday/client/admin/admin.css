@@ -1,5 +1,5 @@
 /* Friday: the Admin page, in the main page's console look (home.css). */
-/* theme: fixed .friday-admin */
+/* FRIDAY: no longer fixed; dark Aqua Nebula is derived like the rest. */
 .friday-admin {
   --ok: #15803d;
   --warn: #d97706;
@@ -241,4 +241,189 @@
     transform: rotate(360deg);
   }
 }
+/* The memory graph: Friday's Obsidian vault, drawn like Obsidian's graph view
+   on a dark panel. */
+.memory-graph-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+}
+.memory-graph-head h2 {
+  margin: 0;
+}
+.memory-graph-sub {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 11px/1.4 var(--mono);
+  color: var(--muted);
+}
+.memory-graph-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+.memory-graph-actions input {
+  width: 220px;
+  max-width: 100%;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+}
+.friday-admin .memory-graph-actions button,
+.memory-graph-obsidian {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+.memory-graph-obsidian {
+  border-color: transparent;
+  background: #6d5ef6;
+  color: #fff;
+}
+.memory-graph-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 10px 0;
+  font-size: 13px;
+  color: var(--ink);
+}
+.memory-graph-legend label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.memory-graph-legend label.off {
+  opacity: 0.45;
+}
+.memory-graph-legend input {
+  display: none;
+}
+.memory-graph-legend small {
+  color: var(--muted);
+  font-family: var(--mono);
+}
+.memory-graph-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+/* FRIDAY: the graph stays dark in both themes. */
+/* theme: fixed .memory-graph-body */
+.memory-graph-body {
+  position: relative;
+  height: min(70vh, 640px);
+  min-height: 360px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 40%, #22212c, #15151b 70%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.memory-graph-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+.memory-graph-empty {
+  margin: 0;
+  padding: 24px;
+  color: #c7ccd6;
+}
+.memory-graph-note {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  bottom: 12px;
+  width: min(360px, calc(100% - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(24, 24, 32, 0.94);
+  border: 1px solid rgba(169, 155, 255, 0.3);
+  color: #e6e8f5;
+  overflow: auto;
+}
+.memory-graph-note h3 {
+  margin: 0;
+  padding-right: 24px;
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+.memory-graph-path {
+  margin: 0;
+  font: 11px/1.4 var(--mono);
+  color: #8f9bb3;
+  overflow-wrap: anywhere;
+}
+.memory-graph-note pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font:
+    13px/1.5 'Segoe UI',
+    system-ui,
+    sans-serif;
+}
+.memory-graph-note a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  color: #a99bff;
+}
+.memory-graph-note ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+.friday-admin .memory-graph-note li button {
+  width: 100%;
+  justify-content: flex-start;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 0 !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: #e6e8f5 !important;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.friday-admin .memory-graph-note li button:hover {
+  background: rgba(169, 155, 255, 0.18) !important;
+  color: #fff !important;
+}
+.friday-admin .memory-graph-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 2px;
+  border: 0 !important;
+  background: none !important;
+  color: #c7ccd6 !important;
+  cursor: pointer;
+}
+
 /* theme: end */

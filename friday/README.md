@@ -100,35 +100,25 @@ This adds "Friday" to the Start menu and the desktop. The shell shows Friday fro
 
 ## Call Friday
 
-Call the Sarvam number Friday calls you from, and Friday picks up and does what you say: "set a timer for 20 minutes", "what's my battery", "email Ravi that I'm late". Sarvam carries the call (the number, hearing and the voice), but Friday does the thinking: Sarvam's agent is set up as a relay that sends everything the caller says to its `ask_friday` tool and says Friday's answer word for word. The tool reaches `POST /phone/ask` on the services through a fixed ngrok address.
+Friday has its own calling agent. Exotel gives it an Indian number and carries the call audio, and everything else is Friday's own: a Pipecat pipeline in `friday/services` (`calls/bot.py`) hears with **Gnani Prisma**, thinks with **Evon** and speaks with **Gnani Timbre**, with Silero voice detection so the caller can talk over it. Exotel's Voicebot applet streams the call both ways to `/exotel/stream` through a fixed ngrok address; when Friday ends the call it closes the stream and the call flow hangs up.
 
-Who answers depends on who is calling. Sarvam sends the caller as a code (SHA-256 of the number), which Friday matches against your number and your contacts:
+**Calls Friday places.** `start_call` phones someone for you with one goal ("book a dental check-up tomorrow at 6 PM"). Friday says it is your AI assistant, never agrees to pay, checks with you before accepting a different option, and ends with an outcome, a summary and the transcript (`get_call_result`). `schedule_call` does the same at a later time. Friday also phones **you** when you ask ("call me at 5") and before deadlines, with your updates.
 
-- **You** (`FRIDAY_OWNER_PHONE` or Your details) get the **Friday** Dot itself, in its own "Friday phone" conversation: everything Friday can do on the desktop, it can do on a call. Something that needs your OK is read back, and a "yes" or "haan" on the same call approves it. A request that takes longer than about 20 s keeps running; ask "is it done?" to hear the result.
-- **Anyone else** gets the **Reception** Dot: no tools, no memory, only its own empty "Phone callers" Space, and none of your details or contacts. It says it is Friday, your AI assistant, answers general questions, shares nothing about you and takes a message. Every word they say is saved to your notes under their contact name.
-- On a call **Friday placed**, the reason (`reason`) goes along, so Friday or Reception stays on why it called.
+**Calls to Friday's number.** Who answers depends on who is calling. Friday matches the caller against your number and your contacts:
+
+- **You** (`FRIDAY_OWNER_PHONE` or Your details) get **Friday** itself, with your updates first. Ask for anything ("set a timer for 20 minutes", "what's my battery", "WhatsApp Ravi that I'm late") and the call's `ask_friday` tool runs it through the Friday Dot, in its own "Friday phone" conversation: everything Friday can do on the desktop, it can do on a call, and it says "one second" while it works. Something that needs your OK is read back, and a "yes" or "haan" on the same call approves it. A request that takes longer than about 20 s keeps running; ask "is it done?" to hear the result.
+- **Anyone else** gets **Reception**: no tasks, and none of your details or contacts. It says it is Friday, your AI assistant, shares nothing about you and takes a message (`take_message`), which is saved to your notes under their contact name.
+
+Every call's transcript, outcome and reply times are kept in `friday/services/data/calls`.
 
 Once:
 
-1. **ngrok:** sign up free at dashboard.ngrok.com, copy your authtoken, and claim your free static domain (Domains). Put them in `.env` as `NGROK_AUTHTOKEN` and `NGROK_DOMAIN`, then restart the services. They print `Phone: Friday answers at https://<your domain>`.
-2. **Reception:** run the setup script again (`node --env-file-if-exists=.env friday/scripts/setup-friday-dot.mjs`); it creates the Reception Dot and its Space.
-3. **The agent's tool:** in indus.sarvam.ai, open Friday's agent → Tools → add an API tool:
-   - Name `ask_friday`; description "Friday's answer to what the caller just said".
-   - `POST https://<your domain>/phone/ask`; Auth: bearer token = `FRIDAY_PHONE_TOKEN` from `.env`.
-   - Body (type `@` to insert the variables): `{"transcript": "@Call Transcript", "caller": "@User Identifier", "call_id": "@Interaction ID", "reason": "@reason"}`.
-   - Max wait 30 s; response template: say `@reply` exactly; if it fails: "Sorry, I couldn't reach Friday. Please try again."
-4. **The agent's greeting and instructions:** the greeting (the agent's first message) must be only the variable `opening_line` (type `@` and pick it), not fixed text: calls Friday places fill it with "Hi, I'm Friday…" and why it called. Give `opening_line` the default value "Hi, I'm Friday. How can I help you?", which is what someone calling the number hears, and give `reason` an empty default. Replace the instructions with the relay instructions below. Commit a new version.
-5. **Inbound:** Deploy → Inbounds → Create Inbound with that agent version, your Sarvam connection and number (`SARVAM_AGENT_NUMBER`), every day, calls allowed 00:00–23:59. If Sarvam does not allow the same number for inbound, rent a second number for it.
+1. **ngrok:** sign up free at dashboard.ngrok.com, copy your authtoken, and claim your free static domain (Domains). Put them in `.env` as `NGROK_AUTHTOKEN` and `NGROK_DOMAIN`. Exotel's call flow points at this address, so it must not change.
+2. **Exotel:** sign up at exotel.com. The free trial lasts 7 days, has one number (ExoPhone), and calls only numbers you verify under Settings → Whitelist Numbers. Ask hello@exotel.com to switch on the Voicebot applet (AgentStream) for your account. From API settings put `EXOTEL_API_KEY`, `EXOTEL_API_TOKEN` and `EXOTEL_ACCOUNT_SID` in `.env`, your ExoPhone as `EXOTEL_CALLER_ID`, and any random string of 20+ characters as `EXOTEL_STREAM_KEY`. An India account uses `api.in.exotel.com` (the default); set `EXOTEL_SUBDOMAIN=api.exotel.com` for a Singapore one.
+3. **The call flow:** in App Bazaar, create a flow with a **Voicebot** applet followed by a **Hangup** applet. The Voicebot's URL is `wss://<your domain>/exotel/stream?key=<EXOTEL_STREAM_KEY>`; the services print it at start (`Phone: Exotel Voicebot URL: …`). Put the flow's id (the number in its address) in `.env` as `EXOTEL_APP_ID`, and set the ExoPhone's incoming calls to the same flow.
+4. **Check:** restart the services. `GET /health` shows `"calls": {"ready": true, "provider": "exotel"}`; then ask Friday to call you, or call the ExoPhone from your own number.
 
-The relay instructions for the Sarvam agent:
-
-```text
-You are only the voice of Friday. Friday thinks; you never answer by yourself.
-After your first message, every time the caller says anything, call tool:ask_friday right away, then say its reply exactly, word for word, in the caller's language. Do not add, shorten or change anything, and do not greet again.
-If the reply is long to come, do not fill the silence.
-If the tool fails, say: Sorry, I couldn't reach Friday. Please try again.
-When the caller says bye, or the reply says goodbye, say a short goodbye and end the call.
-```
+Exotel signs nothing, so the audio stream and its status callbacks must carry `EXOTEL_STREAM_KEY`, and through the tunnel only the call routes answer.
 
 ## How the voice stage works
 
@@ -185,7 +175,7 @@ cd friday/browser-agent; python -m uv run pytest
 - **Echo:** echo cancellation and a raised threshold while Friday speaks keep it from hearing itself, but headphones work best.
 - **Phone calls over Twilio** (the earlier calling service) are parked; the code remains under `friday/services/friday_services/calls`.
 - **The browser agent** (browser-use, `friday/browser-agent`) runs in its own Python environment because it pins exact library versions; it attaches to Navigator's Chrome window through Chrome's debugging port on 127.0.0.1 (`FRIDAY_BROWSER_CDP_PORT`). Every step is one model call, so a free Gemini key runs out quickly; its log is `friday/services/data/browser-agent.log`.
-- **Playing on YouTube** takes 4–7 s, mostly YouTube's own page load; the services open Chrome at start (`FRIDAY_BROWSER_PREWARM`) so the first request skips Chrome's startup.
+- **Playing on YouTube** takes 4–7 s, mostly YouTube's own page load; the first web task also starts Friday's own Chrome. `FRIDAY_BROWSER_PREWARM=true` opens it when the services start instead.
 - **Conversations live in CopilotKit's cloud** (its local version is macOS-only). Telegram was dropped.
 
 ## Credit and license

@@ -1,9 +1,9 @@
 // Applies the saved theme before the first paint so dark mode never flashes
 // white. Kept in sync with src/client/theme.ts, which handles later changes.
 (function () {
-  var preference = 'system';
+  var preference = 'dark';
   try {
-    preference = localStorage.getItem('opendots-theme') || 'system';
+    preference = localStorage.getItem('opendots-theme') || 'dark';
   } catch (error) {}
   var dark =
     preference === 'dark' ||

@@ -10,6 +10,7 @@ import { resolveAppOrigins } from './app-origin.js';
 import { WorkspaceStore } from './workspace.js';
 import { Platform } from './platform.js';
 import { ObsidianMemory } from '../friday/server/obsidian-memory.js';
+import { readContacts } from '../friday/server/contacts.js';
 import {
   agentRunTimeoutMsFromEnv,
   intelligenceApiKeyFromEnv,
@@ -64,6 +65,8 @@ const config: PlatformConfig = {
 };
 const obsidianMemory = new ObsidianMemory(
   () => store.settings().obsidianVaultPath ?? 'data/friday-obsidian',
+  // FRIDAY: notes link to the contacts they mention (the memory graph).
+  () => readContacts().map((contact) => contact.name),
 );
 void obsidianMemory
   .prepareVault()

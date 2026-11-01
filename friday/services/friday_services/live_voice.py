@@ -33,6 +33,8 @@ Pipeline -> screen:
 from __future__ import annotations
 
 import asyncio
+import collections
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -53,8 +55,30 @@ from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 
 from friday_services.usage import usage
 
-TAIL_SECONDS = 1.0  # silence after Caps Lock is let go, so Gnani ends the turn
+TAIL_SECONDS = 1.0
+PREROLL_SECONDS = 1.5  # audio kept from before a "Hey Friday" hold began  # silence after Caps Lock is let go, so Gnani ends the turn
 TTS_MODEL = "timbre-v2.5"
+# Gnani allows one Timbre request at a time per key. Every voice window has its
+# own pipeline, so they take turns here instead of Gnani refusing one (429).
+_ONE_VOICE: dict[asyncio.AbstractEventLoop, asyncio.Lock] = {}
+
+
+def one_voice_lock() -> asyncio.Lock:
+    loop = asyncio.get_running_loop()
+    return _ONE_VOICE.setdefault(loop, asyncio.Lock())
+
+
+def one_at_a_time(service_class):
+    """A TTS service class whose requests wait for each other."""
+
+    class OneAtATime(service_class):
+        async def run_tts(self, text: str, context_id: str):
+            async with one_voice_lock():
+                async for frame in super().run_tts(text, context_id):
+                    yield frame
+
+    return OneAtATime
+
 
 Send = Callable[[dict[str, Any]], None]
 
@@ -85,6 +109,26 @@ class AudioGate(FrameProcessor):
         self._tail_left = 0.0
         self._held_audio = 0.0
         self._loudest = 0
+        # Every mic frame, open or not, for "Hey Friday" and claps (wake.Ears).
+        self.tap: Callable[[bytes, int], None] | None = None
+        # The last moments of mic audio. "Hey Friday, play music" said in one
+        # breath: listening starts a moment after "play" began, so the next
+        # hold that "Hey Friday" opens starts with these (preroll).
+        self._recent: collections.deque[InputAudioRawFrame] = collections.deque()
+        self._recent_seconds = 0.0
+        self._preroll_until = 0.0
+        self._replay: list[InputAudioRawFrame] = []
+
+    def preroll_next(self, within: float = 3.0) -> None:
+        """The next hold (opened by "Hey Friday") also gets the recent audio."""
+        self._preroll_until = time.monotonic() + within
+
+    def _remember(self, frame: InputAudioRawFrame) -> None:
+        self._recent.append(frame)
+        self._recent_seconds += frame.num_frames / frame.sample_rate
+        while self._recent and self._recent_seconds > PREROLL_SECONDS:
+            old = self._recent.popleft()
+            self._recent_seconds -= old.num_frames / old.sample_rate
 
     @property
     def open(self) -> bool:
@@ -103,18 +147,30 @@ class AudioGate(FrameProcessor):
         if down and not self.held:
             self._held_audio = 0.0
             self._loudest = 0
+            if time.monotonic() < self._preroll_until:
+                self._replay = list(self._recent)
+            self._preroll_until = 0.0
         self.held = down
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         await super().process_frame(frame, direction)
         if isinstance(frame, InputAudioRawFrame):
+            if self.tap is not None and frame.audio:
+                try:
+                    self.tap(frame.audio, frame.sample_rate)
+                except Exception:
+                    logger.exception("wake audio tap failed")
             if self.open:
+                replay, self._replay = self._replay, []
+                for earlier in replay:  # the words said just before listening began
+                    await self.push_frame(earlier, direction)
                 if self.held and frame.audio:
                     self._held_audio += frame.num_frames / frame.sample_rate
                     samples = np.frombuffer(frame.audio, dtype=np.int16).astype(np.int32)
                     self._loudest = max(self._loudest, int(np.abs(samples).max()))
                 await self.push_frame(frame, direction)
             elif self._tail_left > 0:
+                self._remember(frame)
                 seconds = frame.num_frames / frame.sample_rate
                 self._tail_left -= seconds
                 await self.push_frame(
@@ -125,6 +181,8 @@ class AudioGate(FrameProcessor):
                     ),
                     direction,
                 )
+            else:
+                self._remember(frame)
             return
         await self.push_frame(frame, direction)
 
@@ -245,7 +303,7 @@ class LiveVoiceSession:
             settings=GnaniSTTService.Settings(language=language_of(self._language)),
         )
         http = aiohttp.ClientSession()
-        tts = GnaniSSETTSService(
+        tts = one_at_a_time(GnaniSSETTSService)(
             api_key=self._api_key, aiohttp_session=http, voice_id=self._voice, model=TTS_MODEL
         )
         vad = VADProcessor(

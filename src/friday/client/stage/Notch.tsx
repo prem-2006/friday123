@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import './notch.css';
 
 export type NotchState =
-  'idle' | 'hearing' | 'thinking' | 'speaking' | 'asking' | 'offline';
+  'idle' | 'quiet' | 'hearing' | 'thinking' | 'speaking' | 'asking' | 'offline';
 
 interface Desktop {
   setInteractive: (on: boolean) => void;
@@ -51,11 +51,11 @@ function Bars({
       pill?.style.setProperty('--mic', mic.toFixed(3));
       ctx.clearRect(0, 0, w, h);
       const fill = ctx.createLinearGradient(0, 0, 0, h);
-      fill.addColorStop(0, '#8fe3ff');
-      fill.addColorStop(0.5, '#ffffff');
-      fill.addColorStop(1, '#8fe3ff');
+      fill.addColorStop(0, '#58c9f3');
+      fill.addColorStop(0.5, '#bde5ff');
+      fill.addColorStop(1, '#58c9f3');
       ctx.fillStyle = fill;
-      ctx.shadowColor = '#7fd8ff';
+      ctx.shadowColor = '#58c9f3';
       ctx.shadowBlur = 4 + 6 * mic;
       const gap = w / BARS;
       for (let i = 0; i < BARS; i++) {
@@ -124,13 +124,13 @@ function Waves({ level }: { level: () => number }) {
       ctx.clearRect(0, 0, w, h);
       ctx.globalCompositeOperation = 'lighter';
       const gradient = ctx.createLinearGradient(0, 0, w, 0);
-      gradient.addColorStop(0, 'rgba(94, 200, 255, 0)');
-      gradient.addColorStop(0.2, '#5ec8ff');
-      gradient.addColorStop(0.5, '#a99bff');
-      gradient.addColorStop(0.8, '#e08bff');
-      gradient.addColorStop(1, 'rgba(224, 139, 255, 0)');
+      gradient.addColorStop(0, 'rgba(88, 201, 243, 0)');
+      gradient.addColorStop(0.2, '#58c9f3');
+      gradient.addColorStop(0.5, '#2fa0c6');
+      gradient.addColorStop(0.8, '#e6d6ea');
+      gradient.addColorStop(1, 'rgba(230, 214, 234, 0)');
       ctx.strokeStyle = gradient;
-      ctx.shadowColor = '#8b7bff';
+      ctx.shadowColor = '#2fa0c6';
       ctx.shadowBlur = 6;
       // Never flat: a little swell even between words.
       const swell = 0.3 + 0.7 * loud;
@@ -210,12 +210,13 @@ export function Notch({
     <div className={`friday-notch ${state}${linked ? '' : ' unlinked'}`}>
       {note && (
         <div
-          className="notch-note"
+          className={`notch-note${asking ? ' asking' : ''}`}
           role={state === 'asking' ? 'dialog' : 'status'}
         >
+          {asking && <strong>Friday needs your OK</strong>}
           <span>{note}</span>
-          {state === 'asking' && onDecide && (
-            <>
+          {asking && (
+            <div className="notch-actions">
               {/* Acts on the press: in this window that never takes focus,
                   a press arrives but a full click may not. */}
               <button
@@ -237,7 +238,7 @@ export function Notch({
               >
                 Approve
               </button>
-            </>
+            </div>
           )}
         </div>
       )}
@@ -257,7 +258,6 @@ export function Notch({
             <i />
           </span>
         )}
-        {state === 'idle' && <span className="notch-ready" aria-hidden />}
         {state === 'offline' && <span className="notch-warn" aria-hidden />}
       </button>
     </div>
@@ -300,6 +300,19 @@ export function NotchDemo() {
       ),
     );
   }, []);
+  // #/notch-demo?asking: the approval card for a WhatsApp message.
+  if (location.hash.split('?')[1] === 'asking')
+    return (
+      <div className="notch-demo">
+        <Notch
+          state="asking"
+          level={level}
+          spectrum={spectrum}
+          note="Send “Running 10 minutes late, see you soon” to Priya on WhatsApp?"
+          onDecide={() => {}}
+        />
+      </div>
+    );
   return (
     <div className="notch-demo">
       <Notch

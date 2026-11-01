@@ -1,0 +1,259 @@
+/* FRIDAY: Aqua Nebula, the glass-and-metal finish on top of the palette that
+   src/build/dark-theme.ts tints every color onto. Glass for surfaces that
+   hold content (sidebar, composer, cards, dialogs), brushed metal for the
+   things you press. Dark theme only; the Dot characters are never styled
+   here. Colors are exact palette values, so the palette pass skips them. */
+/* palette: exact */
+:root[data-theme='dark'] {
+  --nebula-glass: linear-gradient(
+    160deg,
+    rgba(28, 78, 117, 0.34) 0%,
+    rgba(6, 24, 38, 0.62) 100%
+  );
+  --nebula-glass-edge: rgba(189, 229, 255, 0.13);
+  --nebula-glass-shine:
+    inset 0 1px 0 rgba(189, 229, 255, 0.14), inset 0 -1px 0 rgba(6, 24, 38, 0.6);
+  --nebula-glass-shadow: 0 18px 40px -18px rgba(1, 8, 14, 0.85);
+  /* Brushed steel: a fine vertical grain over a cool bevelled gradient. */
+  --nebula-grain: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.035) 0 1px,
+    transparent 1px 3px
+  );
+  --nebula-metal:
+    var(--nebula-grain),
+    linear-gradient(180deg, #58c9f3 0%, #2fa0c6 38%, #1c4e75 78%, #173f5f 100%);
+  --nebula-gunmetal:
+    var(--nebula-grain),
+    linear-gradient(180deg, #24435c 0%, #142f45 55%, #0b2133 100%);
+  --nebula-metal-edge:
+    inset 0 1px 0 rgba(222, 244, 255, 0.55),
+    inset 0 -1px 0 rgba(6, 24, 38, 0.55), 0 1px 0 rgba(1, 8, 14, 0.5),
+    0 6px 16px -8px rgba(47, 160, 198, 0.55);
+  --nebula-gunmetal-edge:
+    inset 0 1px 0 rgba(189, 229, 255, 0.2), inset 0 -1px 0 rgba(1, 8, 14, 0.6),
+    0 1px 0 rgba(1, 8, 14, 0.45);
+  background: #061826;
+}
+
+/* The sky: nebula clouds and a little star dust behind every page. */
+:root[data-theme='dark'] body {
+  background:
+    radial-gradient(
+      900px 600px at 82% -8%,
+      rgba(47, 160, 198, 0.22),
+      transparent 65%
+    ),
+    radial-gradient(
+      800px 700px at -6% 108%,
+      rgba(76, 167, 161, 0.18),
+      transparent 60%
+    ),
+    radial-gradient(
+      700px 500px at 40% 55%,
+      rgba(28, 78, 117, 0.35),
+      transparent 70%
+    ),
+    #061826;
+  background-attachment: fixed;
+}
+:root[data-theme='dark'] body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1px 1px at 12% 22%, rgba(189, 229, 255, 0.5), transparent),
+    radial-gradient(1px 1px at 68% 14%, rgba(189, 229, 255, 0.35), transparent),
+    radial-gradient(1px 1px at 88% 64%, rgba(88, 201, 243, 0.4), transparent),
+    radial-gradient(1px 1px at 34% 78%, rgba(189, 229, 255, 0.3), transparent),
+    radial-gradient(1px 1px at 52% 44%, rgba(230, 214, 234, 0.3), transparent);
+  background-size: 380px 380px;
+  opacity: 0.55;
+}
+:root[data-theme='dark'] body #root {
+  position: relative;
+  z-index: 1;
+}
+:root[data-theme='dark'] body :is(.template-app, .workspace, .chat-workspace) {
+  background: transparent;
+}
+
+/* Glass surfaces. */
+:root[data-theme='dark'] body :is(.sidebar, .icon-rail, .topbar) {
+  background: rgba(6, 24, 38, 0.55);
+  backdrop-filter: blur(22px) saturate(150%);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  border-color: var(--nebula-glass-edge);
+}
+:root[data-theme='dark']
+  body
+  :is(
+    .composer,
+    .chat-composer,
+    .modal,
+    .setup-card,
+    .memory-card,
+    .task-detail-card,
+    .page-review-card,
+    .computer-panel,
+    .inline-computer,
+    .source-card,
+    .config-note,
+    .connection-action-card,
+    .friday-home .panel,
+    .friday-home .home-card
+  ) {
+  background: var(--nebula-glass);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid var(--nebula-glass-edge);
+  box-shadow: var(--nebula-glass-shine), var(--nebula-glass-shadow);
+}
+:root[data-theme='dark'] body .modal-backdrop {
+  background: rgba(1, 8, 14, 0.6);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+/* The user's own words sit on a pale orchid tint, Friday's on glass. */
+:root[data-theme='dark'] body .chat-bubble {
+  background: linear-gradient(
+    160deg,
+    rgba(230, 214, 234, 0.16),
+    rgba(28, 78, 117, 0.32)
+  );
+  border: 1px solid rgba(230, 214, 234, 0.16);
+  box-shadow: var(--nebula-glass-shine);
+  color: #eaf6ff;
+}
+
+/* Navigation: active rows glow with a tidepool edge. */
+:root[data-theme='dark'] body :is(.nav-item, .dot-nav):hover {
+  background: rgba(47, 160, 198, 0.1);
+}
+:root[data-theme='dark'] body :is(.nav-item.active, .dot-nav.active) {
+  background: linear-gradient(
+    90deg,
+    rgba(47, 160, 198, 0.24),
+    rgba(28, 78, 117, 0.12)
+  );
+  box-shadow:
+    inset 2px 0 0 #58c9f3,
+    inset 0 1px 0 rgba(189, 229, 255, 0.1);
+  color: #eaf6ff;
+}
+
+/* Brushed metal: the main actions. */
+:root[data-theme='dark']
+  body
+  :is(.primary, .send-button, .unlock, .connection-connect.primary):not(
+    :disabled
+  ) {
+  background: var(--nebula-metal);
+  border: 1px solid rgba(189, 229, 255, 0.45);
+  box-shadow: var(--nebula-metal-edge);
+  color: #061826;
+  font-weight: 600;
+  text-shadow: 0 1px 0 rgba(222, 244, 255, 0.45);
+  transition:
+    filter 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+:root[data-theme='dark']
+  body
+  :is(.primary, .send-button, .unlock):not(:disabled):hover {
+  filter: brightness(1.08) saturate(1.1);
+  box-shadow:
+    var(--nebula-metal-edge),
+    0 0 22px -4px rgba(88, 201, 243, 0.65);
+}
+:root[data-theme='dark']
+  body
+  :is(.primary, .send-button, .unlock):not(:disabled):active {
+  transform: translateY(1px);
+}
+/* Gunmetal: everything else you can press. */
+:root[data-theme='dark']
+  body
+  :is(
+    .secondary,
+    .text-button.bordered,
+    .suggestion,
+    .connection-connect,
+    .page-chat-launch,
+    .friday-home .home-top nav button,
+    .friday-home .chip,
+    .friday-admin .home-top button
+  ) {
+  background: var(--nebula-gunmetal);
+  border: 1px solid rgba(189, 229, 255, 0.16);
+  box-shadow: var(--nebula-gunmetal-edge);
+  color: #d6eefc;
+}
+:root[data-theme='dark']
+  body
+  :is(
+    .suggestion,
+    .connection-connect,
+    .friday-home .home-top nav button,
+    .friday-home .chip
+  ):hover {
+  border-color: rgba(88, 201, 243, 0.5);
+  box-shadow:
+    var(--nebula-gunmetal-edge),
+    0 0 18px -6px rgba(88, 201, 243, 0.6);
+}
+:root[data-theme='dark']
+  body
+  :is(input, textarea, select):not([type='checkbox']):not([type='radio']):not(
+    [type='range']
+  ) {
+  caret-color: #58c9f3;
+}
+:root[data-theme='dark'] body :is(input, textarea, select):focus-visible {
+  outline: 2px solid rgba(88, 201, 243, 0.7);
+  outline-offset: 1px;
+}
+:root[data-theme='dark'] body ::selection {
+  background: rgba(47, 160, 198, 0.45);
+  color: #eaf6ff;
+}
+:root[data-theme='dark'] body * {
+  scrollbar-color: rgba(88, 201, 243, 0.28) transparent;
+}
+
+/* The main page: the console grid in steel, and a metal Caps Lock key. */
+:root[data-theme='dark'] body .friday-home {
+  --bg: #061826;
+  --panel: rgba(6, 24, 38, 0.6);
+  --line: rgba(189, 229, 255, 0.13);
+  --ink: #e4f3ff;
+  --muted: #8fb4cc;
+  --cyan: #58c9f3;
+  --cyan2: #2fa0c6;
+  --green: #4ca7a1;
+  background: transparent;
+  color: #e4f3ff;
+}
+:root[data-theme='dark'] body .friday-home::before {
+  background:
+    linear-gradient(transparent 0 calc(100% - 1px), rgba(88, 201, 243, 0.05) 0)
+      0 0 / 100% 32px,
+    linear-gradient(
+        90deg,
+        transparent 0 calc(100% - 1px),
+        rgba(88, 201, 243, 0.05) 0
+      )
+      0 0 / 32px 100%;
+}
+:root[data-theme='dark'] body .friday-home .caps {
+  background: var(--nebula-gunmetal);
+  border: 1px solid rgba(189, 229, 255, 0.28);
+  box-shadow:
+    var(--nebula-gunmetal-edge),
+    0 3px 0 #04121d;
+  color: #bde5ff;
+}
+/* palette: end */

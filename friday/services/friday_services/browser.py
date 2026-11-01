@@ -214,6 +214,11 @@ FIRST_VIDEO = re.compile(
 @counted("Tools", "YouTube", "song lookup", ok_if=lambda found: found is not None)
 def first_video(query: str) -> tuple[str, str] | None:
     """Finds a video with one plain request, without loading YouTube in the window."""
+    return nth_video(query, 1)
+
+
+def nth_video(query: str, n: int) -> tuple[str, str] | None:
+    """The n-th full video (1 = first) on YouTube's results page for the query."""
     import httpx
 
     try:
@@ -228,9 +233,10 @@ def first_video(query: str) -> tuple[str, str] | None:
         ).text
     except Exception:
         return None
-    match = FIRST_VIDEO.search(html)
-    if not match:
+    matches = list(FIRST_VIDEO.finditer(html))
+    if len(matches) < n:
         return None
+    match = matches[n - 1]
     try:
         title = json.loads(f'"{match.group(2)}"')
     except ValueError:
@@ -536,6 +542,24 @@ class OnScreenBrowser:
             page.goto(video["url"], wait_until="domcontentloaded", timeout=20_000)
         return {"title": video["title"], "url": page.url}
 
+    def play_shown(self, n: int) -> dict:
+        """Click the n-th full video (1 = first) on the YouTube page Friday shows."""
+        page = self._youtube_page()
+        if "youtube.com" not in page.url:
+            raise BrowserError("YouTube is not open. Say what to play.")
+        results = page.evaluate(RESULTS_JS, "youtube")
+        videos = [r for r in results if r["kind"] == "video"]
+        if len(videos) < n:
+            raise BrowserError("I can't see that many videos on the page.")
+        video = videos[n - 1]
+        path = video["url"].split("youtube.com", 1)[-1]
+        try:
+            page.locator(f'a[href^="{path.split("&")[0]}"]').first.click(timeout=3_000)
+            page.wait_for_url("**/watch**", timeout=8_000)
+        except Exception:
+            page.goto(video["url"], wait_until="domcontentloaded", timeout=20_000)
+        return {"title": video["title"], "url": page.url}
+
     def code_editor(self, code: str | None = None) -> dict:
         """Reads the code editor on the current page, or replaces its code."""
         page = self._page()
@@ -628,6 +652,27 @@ class OnScreenBrowser:
         except Exception:
             email = None  # still signed in; only the address is unknown
         return {"signed_in": True, "email": email}
+
+    def background_get(self, url: str, timeout_ms: int = 12_000) -> tuple[int, str]:
+        """A signed-in request from Friday's Chrome that shows no page (the
+        mail map uses it). A Chrome started just for this stays minimized."""
+        fresh = self._context is None
+        page = self._page(front=False)
+        if fresh:
+            self._minimize(page)
+        response = self._context.request.get(url, timeout=timeout_ms)
+        return response.status, response.text()
+
+    def _minimize(self, page) -> None:
+        try:
+            cdp = self._context.new_cdp_session(page)
+            window = cdp.send("Browser.getWindowForTarget")
+            cdp.send(
+                "Browser.setWindowBounds",
+                {"windowId": window["windowId"], "bounds": {"windowState": "minimized"}},
+            )
+        except Exception:
+            pass  # a visible window is only untidy, not wrong
 
     def connect_google(self, email: str | None = None) -> dict:
         """Shows Google's sign-in page in Friday's Chrome, with the owner's

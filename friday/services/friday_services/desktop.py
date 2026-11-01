@@ -9,6 +9,7 @@ ask the owner first.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import time
 from collections.abc import Callable
@@ -127,6 +128,55 @@ def visible_window_titles() -> list[str]:
     return titles
 
 
+# Browser processes, and the word their own windows' titles end with.
+BROWSER_TITLES = {
+    "chrome": "google chrome",
+    "msedge": "edge",
+    "firefox": "firefox",
+    "brave": "brave",
+    "opera": "opera",
+    "vivaldi": "vivaldi",
+}
+
+
+def app_window_belongs(app: dict[str, str], window: dict[str, Any]) -> bool:
+    """Whether an open window ({title, proc, app}, from winctl) is this
+    Start-menu app's. A site installed as an app (YouTube from Chrome) runs in
+    the browser's process, titled with the site only ("lofi - YouTube"); the
+    browser's own windows end with its name ("… - Google Chrome")."""
+    from friday_services.winctl import key, matches
+
+    name, proc, title = app["name"], window["proc"].lower(), window["title"].casefold()
+    browser = BROWSER_TITLES.get(proc)
+    browser_window = bool(browser) and title.endswith(browser)
+    if "_crx_" in app["app_id"] or "_pwa" in app["app_id"].lower():
+        return bool(browser) and not browser_window and name.casefold() in title
+    if browser:  # "Google Chrome" is the browser's own windows, not its sites
+        return browser_window and matches(window, name)
+    # "ChatGPT Classic" runs as ChatGPT.exe: its first word names the process.
+    return matches(window, name) or key(name.split()[0]) in (key(proc), key(window["app"]))
+
+
+def open_windows_of(app: dict[str, str]) -> list[dict[str, Any]]:
+    """The app's open windows, the one used last first."""
+    from friday_services import winctl
+
+    return [w for w in winctl.windows() if app_window_belongs(app, w)]
+
+
+def bring_window(hwnd: int) -> None:
+    from friday_services import winctl
+
+    winctl.bring(hwnd)
+
+
+def close_window(hwnd: int) -> None:
+    """What the window's X does: the app may still ask to save first."""
+    import ctypes
+
+    ctypes.windll.user32.PostMessageW(hwnd, 0x0010, 0, 0)  # WM_CLOSE
+
+
 # Windows media keys: they control whatever is playing (YouTube app, Spotify, …).
 MEDIA_KEYS = {
     "play": 0xB3,  # play/pause toggles
@@ -170,10 +220,17 @@ class DesktopApps:
         desktop: Any = None,
         send_keys: Callable[..., None] | None = None,
         window_titles: Callable[[], list[str]] | None = None,
+        app_windows: Callable[[dict[str, str]], list[dict[str, Any]]] | None = None,
+        bring: Callable[[int], None] | None = None,
+        close: Callable[[int], None] | None = None,
     ):
         self._list_apps = list_apps
         # Tests that pass a fake desktop read its windows instead.
         self._titles = window_titles or (visible_window_titles if desktop is None else None)
+        real = desktop is None
+        self._app_windows = app_windows or (open_windows_of if real else lambda app: [])
+        self._bring = bring or (bring_window if real else lambda hwnd: None)
+        self._close = close or (close_window if real else lambda hwnd: None)
         self._launch = launch
         self._desktop = desktop
         self._send_keys = send_keys
@@ -205,6 +262,12 @@ class DesktopApps:
             self._apps = self._list_apps()
         names = sorted({app["name"] for app in self._apps})
         return [name for name in names if query.casefold() in name.casefold()][:60]
+
+    def names(self) -> list[str]:
+        """Every Start-menu app's name (for instant commands)."""
+        if self._apps is None:
+            self._apps = self._list_apps()
+        return sorted({app["name"] for app in self._apps})
 
     def _find_app(self, name: str) -> dict[str, str]:
         if self._apps is None:
@@ -248,6 +311,11 @@ class DesktopApps:
         # Opening any app is fine, WhatsApp included; typing into WhatsApp is
         # not (messages go through the WhatsApp tools, which ask first).
         app = self._find_app(name)
+        # Already open: that window comes to the front, no second copy.
+        already = self._app_windows(app)
+        if already:
+            self._bring(already[0]["hwnd"])
+            return {"opened": app["name"], "window": already[0]["title"], "already_open": True}
         before = set(self.windows())
         self._launch(app["app_id"])
         deadline = time.time() + wait_seconds
@@ -260,6 +328,126 @@ class DesktopApps:
             if new or match:
                 return {"opened": app["name"], "window": (new or match)[0]}
         return {"opened": app["name"], "window": None, "note": "Started; no new window seen yet."}
+
+    def close(self, name: str) -> dict:
+        """Close every window of the app, as its X would."""
+        app = self._find_app(name)
+        windows = self._app_windows(app)
+        for window in windows:
+            self._close(window["hwnd"])
+        return {"closed": app["name"], "windows": len(windows)}
+
+    def app_for_site(self, site: str) -> str | None:
+        """The installed app for a site, if the owner has one: "ChatGPT" ->
+        "ChatGPT Classic", "YouTube" -> "YouTube". Never a browser."""
+        want = site.casefold().strip()
+        names = self.names()
+        for test in (lambda c: c == want, lambda c: c.startswith(want + " ")):
+            for name in names:
+                c = name.casefold()
+                if test(c) and not any(b in c for b in BROWSER_TITLES.values()):
+                    return name
+        return None
+
+    def installed_site(self, name: str) -> dict[str, str] | None:
+        """A site installed as an app from the browser (YouTube), if it is."""
+        if self._apps is None:
+            self._apps = self._list_apps()
+        return next(
+            (
+                app
+                for app in self._apps
+                if app["name"].casefold() == name.casefold() and "_crx_" in app["app_id"]
+            ),
+            None,
+        )
+
+    def site_window(self, name: str) -> dict[str, Any] | None:
+        """The installed site's open window ({hwnd, title}), or None."""
+        app = self.installed_site(name)
+        windows = self._app_windows(app) if app else []
+        return windows[0] if windows else None
+
+    def search_and_click(
+        self, name: str, query: str = "", link: str = "", wait_seconds: float = 10
+    ) -> dict | None:
+        """In an installed site's own window (opened, or brought to the front):
+        search with the site's search box ("/" on YouTube), then click the link
+        whose text starts with `link`. None when the site is not installed."""
+        app = self.installed_site(name)
+        if not app:
+            return None
+        window = self.site_window(name)
+        if window is None:
+            self.open(app["name"])
+            deadline = time.time() + wait_seconds
+            while window is None and time.time() < deadline:
+                time.sleep(0.4)
+                window = self.site_window(name)
+            if window is None:
+                raise DesktopError(f"{app['name']} did not open a window.")
+            time.sleep(2.5)  # the page loads its search box
+        self._bring(window["hwnd"])
+        time.sleep(0.3)
+        if query:
+            box = self._search_box(window["hwnd"])
+            if box is None:
+                raise DesktopError(f"I could not find the search box in {app['name']}.")
+            box.set_focus()
+            time.sleep(0.2)
+            self._keys("^a")
+            self._keys(escape_text(query), with_spaces=True, pause=0.002)
+            self._keys("{ENTER}")
+        clicked = self.click_link(window["hwnd"], link, wait_seconds) if link else False
+        return {"app": app["name"], "searched": bool(query), "clicked": clicked}
+
+    def _search_box(self, hwnd: int, wait_seconds: float = 6):
+        """The page's search box (YouTube's is a combo box in the page)."""
+        window = self._uia().window(handle=hwnd)
+        deadline = time.time() + wait_seconds
+        while time.time() < deadline:
+            for page in window.descendants(control_type="Document"):
+                boxes = page.descendants(control_type="ComboBox")
+                if boxes:
+                    return boxes[0]
+            time.sleep(0.4)
+        return None
+
+    def click_first_video(self, hwnd: int, wait_seconds: float = 6) -> str:
+        """Click the first video on the page (a link whose text ends with its
+        length, "… 4 hours, 20 minutes", or a mix); its title, or ""."""
+        window = self._uia().window(handle=hwnd)
+        long = re.compile(r"\d+ (?:seconds?|minutes?|hours?)\W*$|^mix [-–]", re.I)
+        deadline = time.time() + wait_seconds
+        while time.time() < deadline:
+            for link in window.descendants(control_type="Hyperlink"):
+                text = (link.window_text() or "").strip()
+                if long.search(text):
+                    try:
+                        link.invoke()
+                    except Exception:
+                        link.click_input()
+                    return re.sub(r"\s+\d+ (?:seconds?|minutes?|hours?)[\s,\w]*$", "", text)
+            time.sleep(0.5)
+        return ""
+
+    def click_link(self, hwnd: int, starts: str, wait_seconds: float = 10) -> bool:
+        """Click (through UI Automation, the mouse stays put) the first link in
+        the window whose text starts with `starts`, once the page shows it."""
+        want = " ".join(starts.casefold().split())[:50]
+        window = self._uia().window(handle=hwnd)
+        deadline = time.time() + wait_seconds
+        while time.time() < deadline:
+            for link in window.descendants(control_type="Hyperlink"):
+                text = " ".join((link.window_text() or "").casefold().split())
+                if want and text.startswith(want):
+                    try:
+                        link.invoke()
+                    except Exception:
+                        link.click_input()
+                    return True
+            time.sleep(0.5)
+        return False
 
     def _focus_app(self, name: str):
         """The app's window, in front and taking the keyboard; opens the app

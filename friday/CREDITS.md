@@ -8,6 +8,18 @@ Friday is built on one open-source project, took ideas from two more, and uses a
 | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------- |
 | [OpenDots](https://github.com/CopilotKit/OpenDots) by CopilotKit | The whole base app: Dots (agents), Spaces and conversations, the chat screen, the server that runs a Dot's turns, MCP connections with "ask first" approvals, settings, dark mode, Parallel web research. Friday's changes to its files are small and listed in [CHANGES-TO-OPENDOTS.md](CHANGES-TO-OPENDOTS.md). | `src/` (except `src/friday/`), `tests/` (except `tests/friday/`), `docs/` | MIT     |
 
+## 1b. Code ported from
+
+| Project | What Friday took | Where in Friday | License |
+| ------- | ---------------- | --------------- | ------- |
+| [Atticus for Mac](https://github.com/SaarthurR/atticus-mac) by SaarthurR, and its Windows port [atticus-windows](https://github.com/FindlayHi/atticus-windows) | Instant commands with no AI call, learned shortcuts that replay a task said in any order or for another app, "When I say X, …" voice shortcuts, "watch for me", the opt-in wake word idea, and the Windows display and window code (laptop vs monitor, exact window frames). Adapted to replay Friday's own quick tools and to Hindi and Hinglish asks. | `friday/services/friday_services/instant.py`, `winctl.py`, `watch.py`, `wake.py` (wake word), `src/friday/server/instant.ts` | MIT |
+
+## 1c. Run alongside Friday
+
+| Project | What it does for Friday | Where in Friday | License |
+| ------- | ----------------------- | --------------- | ------- |
+| [Hermes Agent](https://github.com/NousResearch/hermes-agent) by Nous Research | Navigator's engine for multi-step browser jobs: it works Friday's Chrome over CDP with Friday's model, and keeps its own memory and skills. Installed as a package, not copied. | `friday/hermes-agent/` (`run_task.py`), chosen in `friday/services/friday_services/browser_agent.py` | MIT |
+
 ## 2. Ideas taken and rebuilt (no code copied)
 
 | Project                                                                                      | What Friday took                                                                                                                                                                                                                                                                      | Where in Friday                                                                                                                 | License          |
@@ -26,7 +38,8 @@ Friday is built on one open-source project, took ideas from two more, and uses a
 | pipecat-gnani, gnani-vachana                          | Gnani's speech-to-text (Prisma) and text-to-speech (Timbre) inside Pipecat                                             |
 | Silero VAD (through Pipecat)                          | Notices when someone starts and stops talking                                                                          |
 | [ngrok-python](https://github.com/ngrok/ngrok-python) | The fixed public address that Sarvam's agent uses to reach Friday                                                      |
-| sounddevice, numpy                                    | Mic audio for the clap detector                                                                                        |
+| sounddevice, numpy                                    | Mic audio for the clap detector and the wake word                                                                      |
+| [Vosk](https://github.com/alphacep/vosk-api) | Offline listening for "Hey Friday" only (small Indian-English model) |
 
 **Browser and desktop**
 

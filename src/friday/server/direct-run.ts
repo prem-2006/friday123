@@ -28,7 +28,13 @@ export async function runDotDirectly(
   {
     approvals = false,
     signal,
-  }: { approvals?: boolean; signal?: AbortSignal } = {},
+    onText,
+  }: {
+    approvals?: boolean;
+    signal?: AbortSignal;
+    /** Each piece of reply text as the model writes it (to speak it live). */
+    onText?: (delta: string) => void;
+  } = {},
 ): Promise<Message[]> {
   const agent = new DotAgent(
     platform.store,
@@ -46,6 +52,9 @@ export async function runDotDirectly(
   const subscription = agent.subscribe({
     onRunErrorEvent: ({ event }) => {
       runError = new Error(event.message);
+    },
+    onTextMessageContentEvent: ({ event }) => {
+      if (event.delta) onText?.(event.delta);
     },
   });
   const stop = () => agent.abortRun();

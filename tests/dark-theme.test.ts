@@ -14,22 +14,22 @@ const lightness = (hex: string) => {
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
   return (r + g + b) / 3;
 };
-it('flips lightness, keeps hue, and preserves alpha', () => {
-  expect(darkColor('#ffffff')).toBe('#1b1b1b');
-  expect(darkColor('#000000')).toBe('#eeeeee');
-  expect(darkColor('#fff')).toBe('#1b1b1b');
+it('flips lightness onto the Aqua Nebula palette and preserves alpha', () => {
+  expect(darkColor('#ffffff')).toBe('#081824');
+  expect(darkColor('#000000')).toBe('#e5f0f8');
+  expect(darkColor('#fff')).toBe('#081824');
   expect(lightness(darkColor('#f4f4f4'))).toBeLessThan(40);
   const green = darkColor('#496d61');
   expect(parseInt(green.slice(3, 5), 16)).toBeGreaterThan(
     parseInt(green.slice(1, 3), 16),
   );
-  expect(darkColor('#ffffff80')).toBe('#1b1b1b80');
+  expect(darkColor('#ffffff80')).toBe('#08182480');
 });
 it('keeps shadows dark instead of turning them into glows', () => {
   expect(darkValue('box-shadow', '0 1px 2px #20263418')).toMatch(
-    /^0 1px 2px #000000[0-9a-f]{2}$/,
+    /^0 1px 2px #01080f[0-9a-f]{2}$/,
   );
-  expect(darkValue('border', '1px solid white')).toBe('1px solid #1b1b1b');
+  expect(darkValue('border', '1px solid white')).toBe('1px solid #081824');
 });
 it('scopes selectors to the dark theme attribute', () => {
   expect(darkSelector('.a, .b:hover')).toBe(
@@ -46,7 +46,7 @@ it('twins only color declarations, inside the same media query', () => {
   expect(css).toContain(":root[data-theme='dark'] .card { color: #");
   expect(css).not.toMatch(/data-theme='dark'\] \.card \{[^}]*padding/);
   expect(css).toMatch(
-    /@media \(max-width: 700px\) \{[^@]*:root\[data-theme='dark'\] \.card \{ background: #1b1b1b; \}/,
+    /@media \(max-width: 700px\) \{[^@]*:root\[data-theme='dark'\] \.card \{ background: #081824; \}/,
   );
 });
 it('keeps the light cascade order when later rules have no literal color', () => {
@@ -88,7 +88,7 @@ it('keeps fixed surfaces in their light colors, untouched by global rules', () =
     ":root[data-theme='dark'] input:not(.call-view, .call-view *)::placeholder",
   );
   expect(css).toContain(
-    ":root[data-theme='dark'] .after:not(.call-view, .call-view *) { color: #eeeeee; }",
+    ":root[data-theme='dark'] .after:not(.call-view, .call-view *) { color: #e5f0f8; }",
   );
   expect(css).toContain(
     ":root[data-theme='dark'] .row:not(:last-child):not(.call-view, .call-view *):before",
@@ -169,16 +169,34 @@ it('applies the chosen theme even when storage is unavailable', async () => {
     vi.resetModules();
     const theme = await import('../src/client/theme');
     theme.watchSystemTheme();
-    expect(dataset.theme).toBe('light');
-    theme.setThemePreference('dark');
+    // Aqua Nebula's dark theme is the default, whatever the system says.
     expect(dataset.theme).toBe('dark');
-    expect(theme.themePreference()).toBe('dark');
+    theme.setThemePreference('light');
+    expect(dataset.theme).toBe('light');
+    expect(theme.themePreference()).toBe('light');
     // A system change does not undo the choice for this page.
     listeners.forEach((listener) => listener());
-    expect(dataset.theme).toBe('dark');
+    expect(dataset.theme).toBe('light');
   } finally {
     vi.unstubAllGlobals();
   }
+});
+it('tints light colors onto the palette, keeping warnings and the Dots', () => {
+  const css = run(`
+    .card { color: #333641; border-color: #c4473a; }
+    .mascot.paused { filter: drop-shadow(0 0 4px #7285d5); }
+    /* palette: exact */
+    .exact { background: #58c9f3; }
+    /* palette: end */
+  `);
+  // A neutral grey picks up the abyss blue: blue channel above red.
+  const ink = declared(css, '.card', 'color')!;
+  expect(parseInt(ink.slice(5, 7), 16)).toBeGreaterThan(
+    parseInt(ink.slice(1, 3), 16),
+  );
+  expect(css).toContain('border-color: #c4473a;');
+  expect(css).toContain('drop-shadow(0 0 4px #7285d5)');
+  expect(css).toContain('.exact { background: #58c9f3; }');
 });
 it('checks text against a variable background in the same rule', () => {
   // Current main: the enabled Save button is background: var(--accent).

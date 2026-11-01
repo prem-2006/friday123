@@ -172,3 +172,50 @@ it('leaves a model’s reasoning notes out of the conversation, both ways', asyn
   ];
   expect(sent[3].map((m) => m.role)).toEqual(['user', 'assistant', 'user']);
 });
+
+it('answers an instant command with no model, and teaches the rest', async () => {
+  const instant = {
+    run: vi.fn(async (text: string) =>
+      text === 'open notepad' ? { say: 'Notepad is open.' } : null,
+    ),
+    learn: vi.fn(async () => {}),
+  };
+  const run = vi.fn(async () => [
+    {
+      id: 'a1',
+      role: 'assistant',
+      content: '',
+      toolCalls: [
+        {
+          id: 't1',
+          type: 'function',
+          function: {
+            name: 'quick__snap_window',
+            arguments: '{"window":"chrome","position":"left"}',
+          },
+        },
+      ],
+    } as unknown as Message,
+    {
+      id: 't1r',
+      role: 'tool',
+      toolCallId: 't1',
+      content: JSON.stringify({ friday_say: 'Chrome is on the left.' }),
+    } as unknown as Message,
+  ]);
+  const app = fridayRunRoutes(fakePlatform(), run, instant);
+  const quick = await (
+    await post(app, { messages: [user('u1', 'open notepad')] })
+  ).json();
+  expect(quick.newMessages.map((m: Message) => m.content)).toEqual([
+    'Notepad is open.',
+  ]);
+  expect(run).not.toHaveBeenCalled();
+  await post(app, { messages: [user('u2', 'chrome to the left please')] });
+  expect(run).toHaveBeenCalledOnce();
+  expect(instant.learn).toHaveBeenCalledWith(
+    'chrome to the left please',
+    [{ tool: 'snap_window', args: { window: 'chrome', position: 'left' } }],
+    'Chrome is on the left.',
+  );
+});

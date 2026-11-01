@@ -29,7 +29,7 @@ def twilio_post(server, path: str, params: dict, *, sign: bool = True) -> httpx.
 
 def test_health_reports_what_is_configured(server):
     body = httpx.get(f"{server.url}/health").json()
-    assert body["calls"] == {"ready": True, "missing": []}
+    assert body["calls"] == {"ready": True, "missing": [], "provider": "twilio"}
 
 
 def test_mcp_requires_the_bearer_token(server):
@@ -133,7 +133,8 @@ def test_an_answered_call_streams_audio_to_friday(server):
         except websockets.exceptions.ConnectionClosed:
             pass
     assert server.call.runs[0]["stream_sid"] == "MZ123"
-    assert server.call.runs[0]["twilio_call_sid"] == "CA123"
+    assert server.call.runs[0]["call_sid"] == "CA123"
+    assert server.call.runs[0]["provider"] == "twilio"
 
     result = client.call("get_call_result", {"call_id": call_id, "wait_seconds": 1})["data"]
     assert result["status"] == "answered" and result["outcome"] == "completed"

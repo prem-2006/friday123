@@ -13,6 +13,8 @@ import { workspaceRoutes } from './workspace-routes.js';
 import { fridayVoiceRoutes } from '../friday/server/voice-routes.js';
 import { fridayActivityRoutes } from '../friday/server/activity-routes.js';
 import { fridayRunRoutes } from '../friday/server/run-routes.js';
+import { fridayMemoryRoutes } from '../friday/server/memory-routes.js';
+import { fridayAppsRoutes } from '../friday/server/apps.js';
 import { fridayAdminRoutes } from '../friday/server/admin-routes.js';
 import { fridayProfileRoutes } from '../friday/server/profile.js';
 import { fridayContactsRoutes } from '../friday/server/contacts.js';
@@ -123,6 +125,11 @@ export function createApp({
   app.route('/api', fridayContactsRoutes());
   // FRIDAY: fast voice turns, run directly on this server.
   if (platform) app.route('/api', fridayRunRoutes(platform));
+  // FRIDAY: the Admin page's memory graph, from the Obsidian vault.
+  if (platform?.obsidianMemory)
+    app.route('/api', fridayMemoryRoutes(platform.obsidianMemory));
+  // FRIDAY: the main page's Connections card (Gmail, Calendar, Drive).
+  if (platform) app.route('/api', fridayAppsRoutes(platform));
   if (platform) app.route('/api', computerRoutes(platform.computers));
   if (platform)
     app.route(

@@ -153,6 +153,10 @@ class FakeBrowser:
         self.log.append(("play", query))
         return {"title": "Lo-fi beats to study to", "url": "https://yt.test/1"}
 
+    def play_shown(self, n):
+        self.log.append(("play_shown", n))
+        return {"title": "Rain sounds", "url": "https://yt.test/2"}
+
     def warm(self):
         pass
 
@@ -247,8 +251,8 @@ def server(settings: Settings, tmp_path: Path):
         looked.append(question)
         return "A code editor with a Python file open."
 
-    def snap(window, position):
-        snapped.append((window, position))
+    def snap(window, position, screen="current"):
+        snapped.append((window, position) if screen == "current" else (window, position, screen))
         return {"window": "Untitled - Notepad", "position": position}
 
     media_keys: list[str] = []

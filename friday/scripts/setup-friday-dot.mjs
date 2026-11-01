@@ -8,6 +8,7 @@
 //   Navigator  drives a Chrome window on your screen (browser tools)
 //   Operator   opens and works desktop apps (desktop tools)
 //   Coder      solves practice problems on LeetCode-style sites (browser tools)
+//   Mail       works in Gmail: summaries, what is pending, drafts (browser tools)
 //   Reception  answers phone calls from anyone but the owner: no tools, no
 //              memory, and only its own empty Space, so it can share nothing
 //              private (the owner's own calls go to Friday itself)
@@ -33,6 +34,8 @@ const SERVICES_URL = (
 const CALENDAR_URL =
   process.env.FRIDAY_CALENDAR_URL || `${SERVICES_URL}/calendar`;
 const reconnect = process.argv.includes('--reconnect');
+// Tool connections that could not be made (reported at the end).
+const failed = [];
 
 const DOTS = [
   {
@@ -52,6 +55,8 @@ const DOTS = [
   },
   // Coding practice (LeetCode and similar) in Friday's Chrome window.
   { name: 'Coder', persona: '../dots/coder.md', connections: ['browser'] },
+  // Gmail in Friday's Chrome window: summaries, what is pending, drafts.
+  { name: 'Mail', persona: '../dots/mail.md', connections: ['browser'] },
   {
     name: 'Reception',
     persona: '../dots/reception.md',
@@ -200,7 +205,17 @@ for (const spec of DOTS) {
       console.log(
         `  Could not connect ${name} at ${SERVICES_URL}/${name}/mcp: ${error.message}`,
       );
+      failed.push(`${spec.name}: ${name}`);
     }
+}
+
+// A helper without its tools can only say it has none, so make this loud.
+if (failed.length) {
+  console.log(
+    `\nWARNING: these tools are NOT connected: ${failed.join(', ')}.\n` +
+      'Start Friday (the services must be running), then run this setup again.',
+  );
+  process.exitCode = 1;
 }
 
 if (!process.env.FRIDAY_SERVICES_TOKEN)

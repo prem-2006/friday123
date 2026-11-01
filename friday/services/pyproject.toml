@@ -22,6 +22,7 @@ dependencies = [
     "sounddevice>=0.5",
     "tzdata>=2026.5",
     "uvicorn[standard]>=0.54.0",
+    "vosk>=0.3.45",
     "winrt-windows-foundation>=3.2",
     "winrt-windows-media-control>=3.2",
 ]

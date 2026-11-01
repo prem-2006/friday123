@@ -137,12 +137,81 @@ async function post<T>(path: string, body: unknown, signal?: AbortSignal) {
   return data;
 }
 
-export function runFriday(messages: Message[], signal?: AbortSignal) {
-  return post<{ threadId: string; newMessages: Message[] }>(
-    '/friday/voice/run',
-    { messages: trimHistory(messages) },
+type TurnResult = { threadId: string; newMessages: Message[] };
+
+/** Runs a voice turn. With onText, the reply text arrives piece by piece as
+ * the model writes it (a stream of JSON lines), so it can be spoken at once. */
+export async function runFriday(
+  messages: Message[],
+  signal?: AbortSignal,
+  onText?: (delta: string) => void,
+): Promise<TurnResult> {
+  if (!onText)
+    return post<TurnResult>(
+      '/friday/voice/run',
+      { messages: trimHistory(messages) },
+      signal,
+    );
+  const response = await fetch('/api/friday/voice/run', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/x-ndjson',
+      ...ownerHeaders(),
+    },
+    body: JSON.stringify({ messages: trimHistory(messages) }),
     signal,
-  );
+  });
+  if (!response.ok || !response.body) {
+    const data = (await response.json().catch(() => ({}))) as {
+      error?: string;
+    };
+    throw new Error(data.error ?? `Request failed (${response.status}).`);
+  }
+  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = '';
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (value) buffer += value;
+    let newline = buffer.indexOf('\n');
+    while (newline >= 0) {
+      const line = buffer.slice(0, newline).trim();
+      buffer = buffer.slice(newline + 1);
+      newline = buffer.indexOf('\n');
+      if (!line) continue;
+      const event = JSON.parse(line) as {
+        type: string;
+        delta?: string;
+        error?: string;
+      } & Partial<TurnResult>;
+      if (event.type === 'text' && event.delta) onText(event.delta);
+      else if (event.type === 'done')
+        return {
+          threadId: event.threadId ?? '',
+          newMessages: event.newMessages ?? [],
+        };
+      else if (event.type === 'error')
+        throw new Error(event.error ?? 'Friday could not finish that.');
+    }
+    if (done) throw new Error('Friday stopped before answering.');
+  }
+}
+
+/** Cuts finished sentences off the front of text being written: returns
+ * [sentences ready to speak, the rest still being written]. */
+export function readySentences(text: string): [string[], string] {
+  const out: string[] = [];
+  let rest = text;
+  for (;;) {
+    // A sentence end (also the Hindi danda), then a space; short pieces wait
+    // for more so the voice does not sound choppy.
+    const match = /[.!?।]+["')\]]?\s+|\n+/u.exec(rest.slice(20));
+    if (!match) break;
+    const end = 20 + match.index + match[0].length;
+    out.push(rest.slice(0, end).trim());
+    rest = rest.slice(end);
+  }
+  return [out.filter(Boolean), rest];
 }
 
 /** Runs the stored request the owner just approved; returns its result. */

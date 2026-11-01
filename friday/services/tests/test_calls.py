@@ -168,7 +168,7 @@ async def test_call_pipeline_builds_with_gnani_and_evon(settings):
     call = build_call_pipeline(
         object(),
         stream_sid="MZ1",
-        twilio_call_sid="CA1",
+        call_sid="CA1",
         record=record,
         store=store,
         settings=settings,

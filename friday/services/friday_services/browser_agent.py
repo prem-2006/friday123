@@ -1,6 +1,7 @@
-"""Runs one browser-use task (friday/browser-agent) in the on-screen Chrome.
+"""Runs one browser task in the on-screen Chrome, with Hermes Agent
+(friday/hermes-agent) or browser-use (friday/browser-agent).
 
-browser-use lives in its own environment because it pins exact versions of
+Each lives in its own environment because it pins exact versions of
 libraries these services also use, so it runs as a child process. Its steps
 come back as JSON lines; the owner's stop switch ends the process at once.
 """
@@ -127,5 +128,15 @@ class BrowserAgent:
         return outcome
 
 
-def agent_from_settings(agent_dir: Path, data_dir: Path) -> BrowserAgent:
+def installed(agent_dir: Path) -> bool:
+    python = agent_dir / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+    return python.exists() and (agent_dir / "run_task.py").exists()
+
+
+def agent_from_settings(
+    agent_dir: Path, data_dir: Path, hermes_dir: Path | None = None, engine: str = "auto"
+) -> BrowserAgent:
+    """Hermes when it is installed (FRIDAY_BROWSER_AGENT=auto or hermes), else browser-use."""
+    if hermes_dir and engine != "browser-use" and (engine == "hermes" or installed(hermes_dir)):
+        return BrowserAgent(lambda: default_command(hermes_dir), data_dir / "hermes-agent.log")
     return BrowserAgent(lambda: default_command(agent_dir), data_dir / "browser-agent.log")

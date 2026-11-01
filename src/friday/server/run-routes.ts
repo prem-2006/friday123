@@ -9,6 +9,7 @@ import type { Message } from '@ag-ui/core';
 import { FRIDAY_DOT_NAME } from './delegate.js';
 import { voiceLog } from './voice-log.js';
 import { fallbackReply } from './quick-finish.js';
+import { instantClient, turnCalls, type InstantClient } from './instant.js';
 import {
   localThread,
   runDotDirectly,
@@ -58,15 +59,25 @@ const answeredOnly = <T extends HistoryItem>(items: T[]) => {
 type Run = typeof runDotDirectly;
 type Turn = { dotName: string; threadTitle: string; owner: boolean };
 
+const servicesInstant = () =>
+  instantClient({
+    servicesUrl:
+      process.env.FRIDAY_SERVICES_URL ??
+      `http://127.0.0.1:${process.env.FRIDAY_SERVICES_PORT || 8765}`,
+    token: process.env.FRIDAY_SERVICES_TOKEN,
+  });
+
 export function fridayRunRoutes(
   platform: DirectPlatform,
   run: Run = runDotDirectly,
+  instant: InstantClient | undefined = servicesInstant(),
 ) {
   const app = new Hono();
   const turn = async (
     c: Context,
     messages: z.infer<typeof message>[],
     { dotName, threadTitle, owner }: Turn,
+    onText?: (delta: string) => void,
   ) => {
     const friday = platform.workspace
       .dots()
@@ -83,17 +94,33 @@ export function fridayRunRoutes(
       );
     const thread = localThread(platform, friday.id, threadTitle);
     const started = performance.now();
+    const userTurn = messages.findLast((item) => item.role === 'user');
+    const userText =
+      typeof userTurn?.content === 'string' ? userTurn.content.trim() : '';
     try {
-      const ran = await run(
-        platform,
-        friday.id,
-        thread.id,
-        answeredOnly(
-          conversational(messages) as unknown as HistoryItem[],
-        ) as unknown as Message[],
-        // Only the owner can approve an action; Reception has no tools.
-        { approvals: owner, signal: c.req.raw.signal },
-      );
+      // A simple ask, or one Friday has learned, needs no model at all.
+      const quick =
+        owner && instant && userText && messages.at(-1)?.role === 'user'
+          ? await instant.run(userText, c.req.raw.signal)
+          : null;
+      const ran = quick
+        ? ([
+            {
+              id: crypto.randomUUID(),
+              role: 'assistant',
+              content: quick.say,
+            },
+          ] as Message[])
+        : await run(
+            platform,
+            friday.id,
+            thread.id,
+            answeredOnly(
+              conversational(messages) as unknown as HistoryItem[],
+            ) as unknown as Message[],
+            // Only the owner can approve an action; Reception has no tools.
+            { approvals: owner, signal: c.req.raw.signal, onText },
+          );
       // The screen keeps only the conversation itself, not a model's notes.
       const newMessages = conversational(ran);
       let said = newMessages
@@ -112,9 +139,10 @@ export function fridayRunRoutes(
         } as Message);
         said = reported;
       }
-      const userTurn = messages.findLast((item) => item.role === 'user');
-      const userText =
-        typeof userTurn?.content === 'string' ? userTurn.content.trim() : '';
+      if (owner && instant && !quick && userText && said) {
+        const calls = turnCalls(newMessages as never);
+        if (calls.length) void instant.learn(userText, calls, said);
+      }
       if (
         owner &&
         userTurn &&
@@ -137,6 +165,7 @@ export function fridayRunRoutes(
       }
       voiceLog('answered', {
         dot: dotName,
+        instant: Boolean(quick),
         ms: Math.round(performance.now() - started),
         tools: newMessages.flatMap((item) =>
           item.role === 'assistant'
@@ -170,10 +199,45 @@ export function fridayRunRoutes(
       .safeParse(await c.req.json().catch(() => null));
     if (!input.success)
       return c.json({ error: 'Send the conversation messages.' }, 400);
-    return turn(c, input.data.messages, {
+    const voiceTurn: Turn = {
       dotName: FRIDAY_DOT_NAME,
       threadTitle: VOICE_THREAD_TITLE,
       owner: true,
+    };
+    if (!(c.req.header('accept') ?? '').includes('application/x-ndjson'))
+      return turn(c, input.data.messages, voiceTurn);
+    // Streamed: one JSON line per piece of reply text as the model writes it,
+    // so the voice screen starts speaking at once; the last line is the turn.
+    const encoder = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        const line = (value: unknown) =>
+          controller.enqueue(encoder.encode(`${JSON.stringify(value)}\n`));
+        try {
+          const done = await turn(c, input.data.messages, voiceTurn, (delta) =>
+            line({ type: 'text', delta }),
+          );
+          const result = (await done.json()) as Record<string, unknown>;
+          line(
+            done.ok
+              ? { type: 'done', ...result }
+              : { type: 'error', status: done.status, ...result },
+          );
+        } catch (error) {
+          line({
+            type: 'error',
+            error: error instanceof Error ? error.message : String(error),
+          });
+        } finally {
+          controller.close();
+        }
+      },
+    });
+    return new Response(body, {
+      headers: {
+        'Content-Type': 'application/x-ndjson',
+        'Cache-Control': 'no-store',
+      },
     });
   });
   // friday/services decides who is calling (the owner's number, or anyone).

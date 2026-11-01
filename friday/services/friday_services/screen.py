@@ -23,9 +23,11 @@ Position = Literal[
     "top-right",
     "bottom-left",
     "bottom-right",
+    "center",
     "maximize",
     "minimize",
 ]
+Screen = Literal["current", "laptop", "monitor"]
 POSITIONS: tuple[str, ...] = Position.__args__  # type: ignore[attr-defined]
 
 LOOK_PROMPT = (
@@ -57,64 +59,18 @@ def snap_rect(work: tuple[int, int, int, int], position: str) -> tuple[int, int,
     return rects[position]
 
 
-def _windows() -> list[tuple[int, str]]:
-    import ctypes
-    from ctypes import wintypes
+def snap_window(title: str, position: str, screen: str = "current") -> dict[str, Any]:
+    """Move a window, with Atticus's window matching and multi-display placement
+    (see winctl.py): by app, process or title, onto the laptop's panel, the
+    external monitor or the display it is on now."""
+    from friday_services import winctl
 
-    user32 = ctypes.windll.user32
-    found: list[tuple[int, str]] = []
-
-    def add(hwnd, _param):
-        if user32.IsWindowVisible(hwnd):
-            length = user32.GetWindowTextLengthW(hwnd)
-            if length:
-                buffer = ctypes.create_unicode_buffer(length + 1)
-                user32.GetWindowTextW(hwnd, buffer, length + 1)
-                found.append((hwnd, buffer.value.strip()))
-        return True
-
-    user32.EnumWindows(ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)(add), 0)
-    return found
-
-
-def snap_window(title: str, position: str) -> dict[str, Any]:
-    import ctypes
-    from ctypes import wintypes
-
-    wanted = title.casefold().strip()
-    windows = _windows()
-    match = [w for w in windows if w[1].casefold() == wanted] or [
-        w for w in windows if wanted in w[1].casefold()
-    ]
-    if not match:
-        raise ScreenError(f"No open window called {title!r}.")
-    hwnd, name = match[0]
-    user32 = ctypes.windll.user32
-    if position == "minimize":
-        user32.ShowWindow(hwnd, 6)  # SW_MINIMIZE
-        return {"window": name, "position": position}
-    user32.ShowWindow(hwnd, 9)  # SW_RESTORE
-    if position == "maximize":
-        user32.ShowWindow(hwnd, 3)  # SW_MAXIMIZE
-    else:
-
-        class MonitorInfo(ctypes.Structure):
-            _fields_ = [
-                ("cbSize", wintypes.DWORD),
-                ("rcMonitor", wintypes.RECT),
-                ("rcWork", wintypes.RECT),
-                ("dwFlags", wintypes.DWORD),
-            ]
-
-        info = MonitorInfo()
-        info.cbSize = ctypes.sizeof(MonitorInfo)
-        monitor = user32.MonitorFromWindow(hwnd, 2)  # MONITOR_DEFAULTTONEAREST
-        user32.GetMonitorInfoW(monitor, ctypes.byref(info))
-        work = info.rcWork
-        x, y, width, height = snap_rect((work.left, work.top, work.right, work.bottom), position)
-        user32.MoveWindow(hwnd, x, y, width, height, True)
-    user32.SetForegroundWindow(hwnd)
-    return {"window": name, "position": position}
+    if position not in POSITIONS:
+        raise ScreenError(f"Unknown position {position!r}.")
+    try:
+        return winctl.place(title, position, screen)
+    except LookupError as error:
+        raise ScreenError(str(error)) from error
 
 
 def capture_screen(max_width: int = 1280) -> str:

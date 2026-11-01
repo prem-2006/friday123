@@ -3,17 +3,19 @@ const key = 'opendots-theme';
 // The choice for this page, even if storage refuses to keep it.
 let chosen: ThemePreference | undefined;
 const query = () => window.matchMedia('(prefers-color-scheme: dark)');
-// Storage can be unavailable (private windows, blocked site data); the theme
-// then follows the system for this visit.
+// FRIDAY: Aqua Nebula's dark theme is the default; 'system' is stored when
+// chosen. Storage can be unavailable (private windows, blocked site data);
+// the theme is then dark for this visit.
 export function themePreference(): ThemePreference {
   if (chosen) return chosen;
   try {
     const value = localStorage.getItem(key);
-    if (value === 'light' || value === 'dark') return value;
+    if (value === 'light' || value === 'dark' || value === 'system')
+      return value;
   } catch {
-    // Fall through to the system theme.
+    // Fall through to the default theme.
   }
-  return 'system';
+  return 'dark';
 }
 export function resolveTheme(preference: ThemePreference, systemDark: boolean) {
   return preference === 'system' ? (systemDark ? 'dark' : 'light') : preference;
@@ -23,13 +25,12 @@ function apply() {
   document.documentElement.dataset.theme = theme;
   document
     .querySelector('meta[name="theme-color"]')
-    ?.setAttribute('content', theme === 'dark' ? '#1b1b1b' : '#f8f7f4');
+    ?.setAttribute('content', theme === 'dark' ? '#061826' : '#f3f9fd');
 }
 export function setThemePreference(preference: ThemePreference) {
   chosen = preference;
   try {
-    if (preference === 'system') localStorage.removeItem(key);
-    else localStorage.setItem(key, preference);
+    localStorage.setItem(key, preference);
   } catch {
     // Applies for this visit only.
   }

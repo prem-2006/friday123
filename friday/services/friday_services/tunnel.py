@@ -5,9 +5,9 @@ the address it prints (https://<random>.trycloudflare.com) as PUBLIC_URL for
 each call; no Twilio console settings are needed for outbound calls. The
 address changes when the tunnel restarts, which is fine for that reason.
 
-TunnelGuard keeps everything except the Twilio routes off the internet:
-requests that come through Cloudflare carry its headers, and only /twilio/
-paths answer them.
+TunnelGuard keeps everything except the call routes off the internet:
+requests that come through Cloudflare or ngrok carry their headers, and only
+the CALL_ROUTES paths answer them.
 """
 
 from __future__ import annotations
@@ -24,6 +24,8 @@ from pathlib import Path
 from friday_services.usage import counted
 
 log = logging.getLogger("friday.tunnel")
+# What the phone providers reach through the tunnel; nothing else answers there.
+CALL_ROUTES = ("/exotel/", "/twilio/", "/phone/")
 TUNNEL_URL = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com")
 
 
@@ -118,8 +120,8 @@ class NgrokTunnel:
 
 
 class TunnelGuard:
-    """ASGI middleware: through a tunnel, only the call routes answer (Twilio's
-    /twilio/ and Sarvam's /phone/)."""
+    """ASGI middleware: through a tunnel, only the call routes answer (Exotel's
+    /exotel/, Twilio's /twilio/ and Sarvam's /phone/)."""
 
     def __init__(self, app):
         self.app = app
@@ -133,7 +135,7 @@ class TunnelGuard:
                 or NGROK_MARK.encode() in headers
                 or b"x-forwarded-for" in headers
             )
-            if from_internet and not scope["path"].startswith(("/twilio/", "/phone/")):
+            if from_internet and not scope["path"].startswith(CALL_ROUTES):
                 if scope["type"] == "http":
                     await send({"type": "http.response.start", "status": 404, "headers": []})
                     await send({"type": "http.response.body", "body": b"Not found."})

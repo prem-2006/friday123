@@ -1,259 +1,203 @@
-> **This repository is Friday**, a voice-first personal assistant for India built for the Gnani AI #GreatIndianAIInternshipChallenge. Friday uses Gnani's Evon v3.3 (planning), Prisma v2.5 (speech-to-text) and Timbre v2.5 (text-to-speech) to research, work in a browser and desktop apps on your PC, and send WhatsApp messages or start calls after your OK. **Start with [friday/README.md](friday/README.md).** Friday is built on OpenDots by CopilotKit (MIT); the original OpenDots README follows unchanged.
-
 <div align="center">
 
-# OpenDots
+# Friday
 
-### Always-on AI coworkers that move between text, calls, and Slack.
+### Your voice-first AI assistant for India.
 
-**An open-source template for persistent AI agents, each with its own computer. Available on Web and Mobile.**
+Talk to Friday in Hindi, English or Hinglish, and it gets things done on your own PC: it opens apps, works websites in a browser you can watch, sends WhatsApp messages, answers your phone calls and remembers what matters to you.
 
-Built with [CopilotKit](https://github.com/CopilotKit/CopilotKit) and [AG-UI](https://docs.ag-ui.com/introduction). · [Get started](#get-started) · [Overview](#overview) · [Architecture](#architecture) · [Features](#features) · [Contributing](CONTRIBUTING.md)
-
-[![CI](https://github.com/CopilotKit/OpenDots/actions/workflows/ci.yml/badge.svg)](https://github.com/CopilotKit/OpenDots/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-![Alpha](https://img.shields.io/badge/status-alpha-orange.svg)
-
-<a href="https://trendshift.io/repositories/275323" target="_blank"><img src="https://trendshift.io/api/badge/trendshift/repositories/275323/daily?language=TypeScript" alt="CopilotKit/OpenDots | Trendshift #2 TypeScript Repository Of The Day" width="250" height="55"/></a>
-
-Host OpenDots on your own infrastructure. Conversations require CopilotKit Intelligence: use the hosted service, the [local Docker evaluation](docs/SETUP.md#local-intelligence-evaluation), or a licensed [self-hosted deployment](https://docs.copilotkit.ai/intelligence/self-hosting). Clone this template and customize it however you want.
-
-[**Building on OpenDots? Meet with the CopilotKit team →**](https://www.copilotkit.ai/talk-to-an-engineer?ref=opendots_readme)
+Built for the **Gnani AI #GreatIndianAIInternshipChallenge**.
 
 </div>
 
 ---
 
-<div align="center">
+## What Friday can do
 
-<table><tr><td>
+- **Talk naturally.** Say **"Hey Friday"** or hold Caps Lock anywhere and speak. Friday answers out loud, sentence by sentence, and stops the moment you talk over it. Clap twice to bring up the voice screen. The wake word is heard on your PC by a small offline model; nothing is sent until you speak your request.
+- **Instant, with no AI call.** "Open Notepad", "chrome kholo", "Chrome left, Notepad right", "full screen Chrome on my big screen", "search YouTube for lofi", "Arijit Singh bajao", "volume 40" run straight away.
+- **Learns as you use it.** When Friday finishes an action once, it remembers the steps; next time the same ask (in any order, or about another app) runs instantly. Teach your own: "When I say focus mode, open Spotify and put Chrome on the left."
+- **Says hi when you call it.** "Hey Friday" or a double clap, and Friday answers about what's on your screen ("Hi! You're on Two Sum in Chrome. Want me to explain this problem?"), then listens.
+- **Hermes Agent drives the browser.** Multi-step web jobs go to [Hermes Agent](https://github.com/NousResearch/hermes-agent) in Friday's own Chrome window, using your Evon model. It keeps its own memory and skills, so it gets better at sites it has used before.
+- **Watch for me.** "Tell me when the download is done" or "let me know when the build says succeeded": Friday checks the window every few seconds on your PC and speaks up when it happens.
+- **Windows across screens.** Halves, quarters, center or full screen, on the laptop's own screen or the external monitor.
+- **Work the web.** Multi-step browser tasks run in a real Chrome window on your screen, with Friday narrating each step.
+- **Use your desktop apps.** Friday opens and types into Windows apps like Notepad or Calculator.
+- **WhatsApp for you.** It finds the right chat, reads your message back and sends it or starts a call only after you say "yes" or "haan".
+- **Answer and make phone calls.** Call Friday's number and it does what you ask. Anyone else who calls is greeted politely, and Friday takes a message without sharing anything about you. Friday can also call you or your contacts, now or on a schedule.
+- **Google account.** Gmail, Calendar and Drive, with email sent only after your approval.
+- **Coding practice.** Friday reads a LeetCode or HackerRank problem, writes a solution and runs the sample tests. It refuses live contests and proctored tests.
+- **Media, files, meetings and reminders.** Control playback and volume, find files, join meetings and set reminders.
+- **Memory.** Ask Friday to remember something and it does. Memories and voice conversations are saved as Markdown notes in an Obsidian vault, and Friday searches them to recall earlier context.
 
-https://github.com/user-attachments/assets/4c74fe7d-ecdd-42dd-95da-5d34f9b9576e
-
-</td></tr></table>
-
-</div>
-
-_Ask → browse → approve → save. A live computer view and a human review card appear right in chat, then the approved draft becomes an editable Space page. Enlarged for readability; idle time is trimmed and playback is accelerated._
-
-## Overview
-
-OpenDots is a starting point for building your own agent workspace. Clone it, define your Dots, connect your services, and adapt the interface and tools to your needs.
-
-**A template, not a hosted product.** You run the application and configure its infrastructure. The template is in early development; the Features section below describes what's included and distinguishes local verification from connected-service testing.
-
-### Spaces
-
-A Space is a home for working documents. Dots appear separately in navigation and can be granted access to multiple Spaces in their settings. Each Dot has a default destination for saved pages; existing installations retain their original Space access. Browse pages in a searchable library, switch between grid and list views, and organize documents as nested subpages. Open a page in a focused visual editor with formatting, slash commands, and undo/redo. Write directly, save a conversation as a page, or ask a specialist to create and revise content.
-
-Pages stay in the local workspace database. Their conversations use CopilotKit Threads, with a separate conversation for each page and specialist. Page links connect the document workspace to Dot chat. Manual editing works before you configure conversation services. Autosave reports its progress, failed saves retain your draft, and revision checks prevent stale edits from overwriting newer content. Markdown source mode remains available.
-
-<div align="center">
-
-<table><tr><td>
-
-https://github.com/user-attachments/assets/d20c3405-4339-49e7-a799-43298728015c
-
-</td></tr></table>
-
-</div>
-
-_Open a Space, navigate to its launch brief, ask Scout about the saved page, and continue in Dot chat. This recording uses live page chat and example launch content._
-
-### Specialist Dots
-
-Give each Dot a name, role, instructions, and permitted tools. A researcher can investigate a topic; a writer can turn findings into a draft. Inspect their work and control what they can do.
-
-### Dot computers
-
-Each Dot can have its own computer, using [OpenBot](https://github.com/CopilotKit/OpenBot)'s container supervisor and computer service. Its browser profile and workspace files persist across stop/start. The Computer panel exposes browser control, human takeover, files, terminal output, and activity, with browser, file, and shell permissions set per Dot. The application keeps service credentials on the server and derives a different computer credential for each Dot.
-
-See [Computer setup](docs/COMPUTERS.md) to build the pinned services and connect your deployment. Computer tools require those services; an unconfigured template does not execute commands on your host.
-
-<div align="center">
-
-<table><tr><td>
-
-https://github.com/user-attachments/assets/30b691c3-0f66-4964-9fdb-67d4feab5568
-
-</td></tr></table>
-
-</div>
-
-_Ask Scout to open a website, summarize it, save notes, and verify the file. Every computer action in this demo is requested through chat; CopilotKit tool renderers show the live browser, saved file, and terminal output inline._
-
-### Review before saving
-
-Ask a Dot to show a draft before saving it. A CopilotKit human-in-the-loop card pauses the conversation for **Approve & save** or **Decline**. Approval creates the page in an authorized Space and returns a link; retries with the same draft recover that saved page. A changed draft needs a new review. The agent continues after your decision.
-
-### Connections
-
-Give a Dot tools from any MCP server, such as email, calendar, GitHub, or your own services. Read-only tools run on their own. Any other tool pauses for an **Approve & run** card in chat, and only your approval runs it. You can turn each tool on or off per Dot. See [Connections](docs/CONNECTIONS.md).
-
-### Connected apps
-
-Dots can use [Composio](https://composio.dev) to work with the owner's email, calendar, and other connected apps. Add `COMPOSIO_API_KEY`, restart OpenDots, then enable Connected apps in both the global settings and the Dot's settings. Adding the API key alone does not grant access.
-
-You can limit each Dot to toolkit slugs such as `gmail` or `google_calendar`. A blank toolkit list allows every toolkit in the Composio project. OpenDots identifies the owner with `OWNER_ID`, so keep that value stable after connecting accounts. When a tool needs authentication, the Dot returns a Connect link in chat for the owner to complete the provider's sign-in flow.
-
-These tools act on real accounts. Start with a read-only request and use a test account before trying write actions. See [Composio setup](docs/SETUP.md#composio) for configuration, permissions, testing, and data-sharing details.
-
-### Text and calls
-
-A continuous conversation keeps the Dot's avatar and status above the messages, with text and call controls close at hand. Work updates, source links, and call receipts appear in the timeline; a side panel shows results or the agent's computer.
-
-Calls pair realtime speech with a separate compute agent, so the conversation can continue while longer work runs. Both use the same conversation context and tool permissions. The call screen includes a live timer, separate user and Dot captions, microphone mute, speaker mute, and a minimized view for continuing in chat. Voice needs separate provider configuration.
-
-<div align="center">
-
-<table><tr><td>
-
-https://github.com/user-attachments/assets/3c06cf71-39ed-4e2b-b846-5463b2722389
-
-</td></tr></table>
-
-</div>
-
-_Connect, talk, mute, minimize, and return to chat. This is a silent screen capture of a real call, with waiting time trimmed and playback accelerated._
-
-### Slack
-
-Mention a Dot through a managed Slack connection using Channels SDK, then continue in its thread. The integration follows [OpenTag](https://github.com/CopilotKit/OpenTag), with an explicit workspace/user allowlist and a selected specialist. See [Slack setup](docs/SETUP.md#slack) to connect your deployment.
-
-<div align="center">
-
-<table><tr><td>
-
-https://github.com/user-attachments/assets/27d03a6c-a9e0-4c29-8d96-fafe0fbae20f
-
-</td></tr></table>
-
-</div>
-
-Bring your agents into Slack with [Channels SDK](https://github.com/CopilotKit/channels-sdk). See the [managed Channels documentation](https://docs.copilotkit.ai/intelligence/channels) to connect them through CopilotKit Intelligence.
-
-## Architecture
-
-### AG-UI connects the agent to the interface
-
-[AG-UI](https://docs.ag-ui.com/introduction) carries streamed messages, tool calls, and agent state between the backend and CopilotKit components. Computer activity appears inline as the agent works; human-in-the-loop cards pause a tool call for your decision before it continues.
-
-The template uses TanStack AI for model streaming and server-tool execution, CopilotKit's React SDK and runtime, Intelligence for durable Threads, and Channels SDK for Slack. Pages, application metadata, and background-work state are stored separately from conversation history.
+## How it works
 
 ```mermaid
-flowchart TB
-  Web["Web app: pages, Spaces, Dots, chat"] -->|AG-UI| Runtime[CopilotKit runtime]
-  Slack[Slack] <--> Managed[Managed channel connection]
-  Managed <--> Channels[Channels SDK]
-  Channels --> Agents[Specialist compute agents]
-  Runtime --> Agents
-  Agents --> AI[TanStack AI]
-  AI --> Provider[OpenAI-compatible model provider]
-  Runtime <--> Intelligence["Intelligence / Threads"]
-  Channels <--> Intelligence
-  Web <--> Speech[Realtime speech]
-  Speech --> Bridge[Compute bridge]
-  Bridge --> Agents
-  Agents --> Controls[Tool permissions]
-  Controls --> Computer[Isolated browser / workspace]
-  Agents --> Jobs[Background work]
-  Runtime --> Metadata[(Pages, Spaces, Dots, work metadata)]
+flowchart LR
+  You((You)) -- hold Caps Lock --> Stage["Voice screen / desktop notch"]
+  Stage -- Gnani Prisma STT --> Friday["Friday agent<br/>(Gnani Evon)"]
+  Friday -- Gnani Timbre TTS --> Stage
+  Friday -- hands off --> Navigator["Navigator<br/>browser"]
+  Friday -- hands off --> Operator["Operator<br/>Windows apps"]
+  Friday -- hands off --> Coder["Coder<br/>coding sites"]
+  Friday -- after your yes --> WA["WhatsApp Desktop"]
+  Phone((Phone call)) -- Exotel --> Services["Friday services<br/>(Python)"]
+  Services --> Friday
+  Services -- live activity + screenshots --> Stage
 ```
 
-You configure the Intelligence project, model provider, and channel connection for your deployment; calls also need a speech provider. Credentials stay on the server. Missing configuration should produce a clear setup state, and test fixtures should remain visibly separate from live integrations.
+Friday is a team of agents:
 
-[OpenMuse](https://github.com/CopilotKit/OpenMuse) and [OpenBot](https://github.com/CopilotKit/openbot) are code references for persistent work, agent computers, and execution controls. OpenDots can be adapted to your own workflows and deployment choices.
+| Agent         | Job                                                                                               |
+| ------------- | ------------------------------------------------------------------------------------------------- |
+| **Friday**    | The one you talk to. Does one-step jobs itself and hands bigger jobs to a helper.                 |
+| **Navigator** | Drives Chrome on your screen and plans multi-step web tasks.                                      |
+| **Operator**  | Opens and works Windows apps through Windows UI Automation.                                       |
+| **Coder**     | Solves problems on coding practice sites in the browser.                                          |
+| **Reception** | Answers phone calls from anyone who isn't you. It takes a message and shares nothing about you.   |
 
-## Get started
+### Gnani models
 
-Use **Node.js 24** and **npm**:
+| Model           | Job                                                 |
+| --------------- | --------------------------------------------------- |
+| **Evon v3.3**   | The brain of every agent                            |
+| **Prisma v2.5** | Speech-to-text, streamed live while you speak       |
+| **Timbre v2.5** | Every word Friday says, streamed as it is generated |
+
+A backup model (for example Gemini) takes over when the main one is rate limited or unavailable.
+
+## Getting started
+
+### You need
+
+- Windows, **Node.js 24+**, npm, Python and [uv](https://docs.astral.sh/uv/) (`python -m pip install uv`)
+- Google Chrome, and WhatsApp Desktop signed in to your account
+- A Gnani API key and Evon endpoint (from the challenge dashboard)
+- A free CopilotKit account for conversation storage: `npx copilotkit@latest login`, then `npx copilotkit@latest project select`
+
+Keep the project folder **outside OneDrive**, since syncing interferes with the dependencies and the database.
+
+### Install
 
 ```sh
-git clone https://github.com/CopilotKit/OpenDots.git
-cd OpenDots
 npm ci
-cp .env.example .env
-npm run dev
+cd friday/services; python -m uv sync; cd ../..
+cd friday/hermes-agent; python -m uv sync; cd ../..   # Navigator's browser engine (Hermes)
+cd friday/browser-agent; python -m uv sync; cd ../..   # optional fallback (browser-use)
 ```
 
-Open **http://127.0.0.1:5173**. You can create Spaces, write pages, and configure Dots before connecting services. To start chatting, connect an Intelligence project and a model.
+Copy `.env.example` to `.env` and fill in at least:
 
-Choose where to store conversations before connecting. For local Docker evaluation, follow [Local Intelligence evaluation](docs/SETUP.md#local-intelligence-evaluation). For hosted Intelligence, sign in and select or create a project in the `OpenDots` folder:
+| Variable                                      | What it is                                               |
+| --------------------------------------------- | -------------------------------------------------------- |
+| `GNANI_API_KEY`                               | Gnani speech (Prisma and Timbre)                         |
+| `EVON_BASE_URL`, `EVON_API_KEY`, `EVON_MODEL` | The Evon model                                           |
+| `FRIDAY_OWNER_NAME`, `FRIDAY_OWNER_PHONE`     | Your name and number                                     |
+| `FRIDAY_SERVICES_TOKEN`                       | Any long random string shared by the app and services    |
+| `FRIDAY_WAKE_WORD`, `FRIDAY_LEARN`            | Optional: turn off "Hey Friday" or learned shortcuts     |
+| `FRIDAY_FALLBACK_*`, `FRIDAY_PRIMARY_*`       | Optional: backup model, and extra keys/models to rotate  |
+| `EXOTEL_*`, `NGROK_*`                         | Optional: phone calls                                    |
+
+### Run
+
+In two terminals:
 
 ```sh
-npx copilotkit@latest login
-npx copilotkit@latest project select
+npm run dev               # the app
+npm run friday:services   # browser, apps, WhatsApp, live voice
 ```
 
-`project select` writes a project key to `.env` as `CPK_INTELLIGENCE_API_KEY`. Keep the generated `CPK_TELEMETRY_ID` with that key so SDK usage can resolve to your Intelligence account. Then add `OPENAI_API_KEY` and `OPENAI_MODEL` to `.env` and restart `npm run dev`.
+The first time, and after each update to Friday, set up the agents and their tools:
 
-Do not run `copilotkit onboard` in this folder. OpenDots already contains its CopilotKit integration, and onboarding adds a second, generic one.
+```sh
+npm run friday:setup
+```
 
-See [Setup](docs/SETUP.md) for configuration, Slack, calls, the browser service, and Docker.
+The first start of the services downloads the small offline "Hey Friday" model (about 36 MB) into `friday/services/data/wake-word`.
 
-## Data and privacy
+Then open **http://127.0.0.1:5173** and hold Caps Lock to talk.
 
-Conversation messages, tool calls, and run events are persisted in the configured Intelligence deployment. The hosted setup sends them to CopilotKit's cloud; the local evaluation setup uses Intelligence on your machine. OpenDots has no standalone SQLite conversation store. SQLite stores pages, workspace metadata, and thread bindings separately.
+### Try saying
 
-The configured model provider receives conversation context, including authorized page content and tool results. Local Intelligence does not make a remote model local: configure the app's model and the Automatic Learning model separately. Public-web research sends queries and selected URLs to Parallel by default; set `WEB_SEARCH_PROVIDER=disabled` to disable those tools. When connected apps are enabled, tool arguments and results pass through Composio and the app provider. Speech and messaging integrations send data to their configured providers when used.
+- "Search for dentists near Indiranagar open this evening."
+- "Open Notepad and write my shopping list: milk, eggs, bread."
+- "WhatsApp Priya that I'm running ten minutes late."
+- "Call Rahul on WhatsApp."
+- "Remember that I prefer window seats."
+- "Hey Friday, when I say study time, open Notepad and play lofi on YouTube." Then just: "Study time."
+- "Tell me when Chrome shows Download complete."
 
-CopilotKit SDK telemetry collects usage metadata separately from conversation persistence. OpenDots also records bounded browser setup stages and first successful assistant activation with a random installation ID; the same opt-out flags disable this tracking and purge pending setup events. See [browser setup telemetry](docs/SETUP-TELEMETRY.md). Runtime events are tagged `OpenDots`; see [signup and usage tracking](docs/TELEMETRY.md). Set `COPILOTKIT_TELEMETRY_DISABLED=true` or `DO_NOT_TRACK=1` to opt out; see [CopilotKit telemetry](https://docs.copilotkit.ai/telemetry). Review [CopilotKit's privacy policy](https://www.copilotkit.ai/privacy-policy) and the policies and retention settings of each service you configure. Installing or renewing local Intelligence still requires CopilotKit sign-in and internet access.
+## Desktop notch
 
-## Features
+`friday/desktop` is a thin black pill that sits just above the taskbar. Hold Caps Lock in any app and it widens with bars that follow your voice; Ctrl + Caps Lock hides or shows it. It starts the app and services if they aren't running.
 
-| Area                       | Included                                                                                                                                |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Spaces and Specialist Dots | Saved names, role instructions, and per-Dot research and memory permissions                                                             |
-| Pages                      | Searchable library, visual editor, slash commands, autosave, and revision checks                                                        |
-| Conversations              | React SDK chat and Threads integration, page-specific conversations, and source links                                                   |
-| Slack                      | Managed Channels SDK declaration with workspace and user allowlists                                                                     |
-| Calls                      | WebRTC speech, delegated compute, bounded sessions, hangup, and timeline receipts                                                       |
-| Background work            | Scheduled server-side turns in their original conversation, with pause and retry controls                                               |
-| Browser                    | Separate read-only public-page service with page capture and navigation limits                                                          |
-| Dot computers              | Per-Dot browser profiles, files, shell, takeover, permissions, and action records through OpenBot                                       |
-| Connections                | Per-Dot MCP servers, Composio connected apps, per-tool access, and owner approval for MCP write actions                                 |
-| Appearance                 | System, light, and dark themes; dark colors are derived at build time from the light styles                                             |
-| Memory                     | User-managed preferences that permitted Dots can use                                                                                    |
-| Automatic Learning         | Per-Dot Learning containers, conversation evidence routing, and published-skill delivery; see [setup](docs/SETUP.md#automatic-learning) |
-| Deployment                 | Local Node setup and separate application/browser containers                                                                            |
+```sh
+cd friday/desktop; npm install; npm run install-shortcuts
+```
 
-Scheduled tasks run in their original conversation. If a worker stops or its lease expires during a run, OpenDots marks that run **Interrupted** and waits for an explicit retry. Review its pages and computer actions, then use **Retry after review** when appropriate. Completed effects may already be present even when a run has no final result.
+This adds Friday to the Start menu and the desktop.
 
-Local checks cover setup, persistence, permissions, SDK failure handling, and browser isolation. Automated tests use service fixtures. **Live Intelligence, model responses, and page-context chat were verified on September 29, 2026.** Live OpenBot computer browsing, file creation, shell verification, and file persistence across stop/start were also verified locally. Live Realtime speech, call controls, and receipt persistence were verified locally on September 30, 2026. Slack and spoken compute delegation still need connected-service verification. See [recording notes](docs/demos/README.md) for the demonstrated flows and limits.
+## Phone calls
 
-Automatic Learning routing and skill delivery are configured locally. Cloud schedules, eligible-thread counts, and published-skill delivery still need connected-service verification. Skills require review and publication in Intelligence; existing conversations without a container are not enrolled retroactively.
+Friday has its own phone line. With an Exotel number and a free ngrok static domain set in `.env`, Friday places and answers real calls itself, hearing with Prisma, thinking with Evon and speaking with Timbre:
 
-This is a single-owner starting point. Shared editing, invitations, file uploads, and interactive page embeds are not included. Schedules are recurring instructions, not a complete goal or event-trigger system. Specialist Dots have separate roles and conversations; multi-Dot group conversations and automatic delegation are further work.
+- **Friday calls for you:** "Call the clinic and book a check-up at 6 PM." Friday says it is your AI assistant, keeps to the goal, and reports the outcome with a transcript.
+- **Friday calls you** when you ask ("call me at 5") and before deadlines, and you can ask it to do things right there on the call.
+- **From your own number** you get the full assistant: everything Friday can do on the desktop, it can do on a call. Anything that needs approval is read back, and saying "yes" on the call approves it.
+- **From any other number** you get Reception, which takes a message. The message is saved to your notes under the caller's contact name.
 
-### Extending the template
+The setup is step by step in [friday/README.md](friday/README.md#call-friday).
 
-- Add identity, Space membership, and shared page editing for multi-user deployments.
-- Add file attachments and richer page content.
-- Add event triggers and a persistent responsibility lifecycle.
-- Extend tools and approval flows for your own workflows.
-- Add richer artifacts, connected-app context, and specialist coordination.
+## Pages
 
-## Contributing
+| Page                                             | Address                              |
+| ------------------------------------------------ | ------------------------------------ |
+| Main page: your details, contacts, calls, Google | http://localhost:5173/               |
+| Voice screen                                     | http://localhost:5173/#/friday       |
+| Desktop notch                                    | http://localhost:5173/#/notch        |
+| Admin: live status of every outside API          | http://localhost:5173/#/admin        |
+| Agent dashboard and classic chat                 | http://localhost:5173/#/chat         |
+| Friday services (`/health`)                      | http://127.0.0.1:8765                |
 
-See [Contributing](CONTRIBUTING.md) for development guidance and [Security](SECURITY.md) for reporting issues. Contributions should describe the workflow they enable, include verification evidence, and distinguish live integrations from fixtures.
+## Safety
 
-## References
+- WhatsApp messages and calls always need your yes, and Friday checks it opened the right chat.
+- The browser and app helpers refuse password, card and OTP fields, never pay and never accept terms.
+- Friday's browser uses its own Chrome profile, so your personal logins are untouched.
+- The stop button, or saying "stop", "ruko" or "bas", halts every on-screen action.
+- Phone callers other than you never reach your details, contacts or tools.
 
-- [AG-UI documentation](https://docs.ag-ui.com/introduction)
-- [CopilotKit documentation](https://docs.copilotkit.ai/intelligence/overview)
-- [Channels SDK](https://github.com/CopilotKit/channels-sdk)
-- [OpenMuse](https://github.com/CopilotKit/OpenMuse)
-- [OpenBot](https://github.com/CopilotKit/openbot)
-- [OpenTag](https://github.com/CopilotKit/OpenTag) — Channels SDK integration reference
+## Project layout
+
+| Path                         | What it is                                                     |
+| ---------------------------- | -------------------------------------------------------------- |
+| `src/friday/client/`         | Voice screen, orb, notch, main page and admin page             |
+| `src/friday/server/`         | Model settings, Gnani voice, hand-offs, memory, phone routes   |
+| `src/server/`, `src/client/` | Agent runtime, chat and workspace                              |
+| `friday/services/`           | Python services: browser, desktop, WhatsApp, calls, live voice |
+| `friday/hermes-agent/`       | Navigator's browser engine: Hermes Agent                      |
+| `friday/browser-agent/`      | Fallback browser engine (browser-use)                          |
+| `friday/desktop/`            | The desktop notch app                                          |
+| `friday/persona.md`, `friday/dots/` | Personas for each agent                                 |
+| `friday/docs/ARCHITECTURE.md` | Design notes                                                  |
+| `tests/`, `friday/services/tests/` | Tests                                                    |
+
+## Tests
+
+```sh
+npm run typecheck; npx vitest run tests/friday
+cd friday/services; python -m uv run pytest; cd ../..
+cd friday/browser-agent; python -m uv run pytest; cd ../..
+cd friday/hermes-agent; python -m uv run pytest
+```
+
+## Known limits
+
+- WhatsApp automation depends on WhatsApp Desktop's control names, which an update can change.
+- Friday starts WhatsApp calls but doesn't speak on them; you do.
+- Some custom-drawn Windows apps don't expose enough UI Automation for Operator.
+- Headphones work best; echo cancellation helps, but speakers can still be picked up.
 
 ## License
 
-[MIT](LICENSE).
-
-## Public-web research
-
-Parallel is selected by default in live research and Dot conversations. Ask a topic-only question to discover and read up to five sources, or supply URLs to extract them directly. Sources are saved with their links. A browser worker is not required for this research path; computer tools remain available for interactive work.
-
-`WEB_SEARCH_PROVIDER=browser` preserves the existing URL-only browser reader, and `WEB_SEARCH_PROVIDER=disabled` disables these research tools. Workspace and Dot research permissions, pause and cancellation controls still apply. Sample research remains fictional and does not contact a provider.
-
-Queries, requested URLs, a stable session identifier and the research objective are sent to `https://search.parallel.ai/mcp`. Memories and complete conversations are not automatically forwarded to Parallel. Model-selected objectives may still contain context from the conversation. The anonymous service is free for light use with provider-managed limits; set `PARALLEL_API_KEY` on the server for production or higher limits. Provider errors and empty results are reported rather than replaced with invented evidence. See [Parallel Search MCP documentation](https://docs.parallel.ai/integrations/mcp/search-mcp).
+MIT. See [LICENSE](LICENSE) and [friday/CREDITS.md](friday/CREDITS.md).

@@ -44,6 +44,9 @@ NO = re.compile(r"\b(no|nope|don'?t|cancel|stop|nahi+n?|nahi|mat|ruko|rehne do)\
 
 def caller_digits(value: str) -> str:
     digits = re.sub(r"\D", "", value or "")
+    if len(digits) == 11 and digits.startswith("0"):
+        # Exotel writes Indian numbers with a trunk 0, e.g. 09812345678.
+        digits = digits[1:]
     return "91" + digits if len(digits) == 10 else digits
 
 

@@ -35,6 +35,7 @@ export const ABILITIES: Ability[] = [
           'open_website',
           'play_youtube',
           'web_search',
+          'play_shown_video',
           'weather',
           'directions',
         ],
@@ -52,6 +53,7 @@ export const ABILITIES: Ability[] = [
         connection: 'quick',
         names: [
           'open_app',
+          'close_app',
           'write_in_app',
           'clear_in_app',
           'press_keys_in_app',
@@ -69,8 +71,14 @@ export const ABILITIES: Ability[] = [
     id: 'screen',
     title: 'Look at my screen',
     detail:
-      'Describe what is on screen when you ask. The screenshot goes to your AI model.',
-    tools: [{ dot: 'Friday', connection: 'quick', names: ['look_at_screen'] }],
+      'Describe what is on screen when you ask (the screenshot goes to your AI model), and watch a window to tell you when something is done (read on this PC only).',
+    tools: [
+      {
+        dot: 'Friday',
+        connection: 'quick',
+        names: ['look_at_screen', 'watch_window', 'stop_watching'],
+      },
+    ],
   },
   {
     id: 'files',

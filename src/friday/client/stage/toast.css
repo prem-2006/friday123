@@ -1,0 +1,77 @@
+/* Friday: the live task toast (see ActivityToast.tsx). The page is see-through. */
+/* theme: fixed .friday-toast */
+.friday-toast-page,
+.friday-toast-page body,
+.friday-toast-page #root {
+  background: transparent !important;
+  overflow: hidden;
+}
+.friday-toast {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  padding: 6px;
+  pointer-events: none;
+  font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+}
+.friday-toast-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 8px;
+  row-gap: 2px;
+  align-items: center;
+  max-width: 100%;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(12, 12, 18, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(10px);
+  color: #e6e8f5;
+  animation: friday-toast-in 0.2s ease-out;
+}
+.friday-toast-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #7fd8ff;
+  animation: friday-toast-pulse 1.2s ease-in-out infinite;
+}
+.friday-toast-card.failed .friday-toast-dot {
+  background: #f2b56b;
+  animation: none;
+}
+.friday-toast-who {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #a9b8d6;
+}
+.friday-toast-what {
+  grid-column: 1 / -1;
+  font-size: 12.5px;
+  line-height: 1.35;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+@keyframes friday-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes friday-toast-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .friday-toast-card,
+  .friday-toast-dot {
+    animation: none;
+  }
+}
+/* theme: end */

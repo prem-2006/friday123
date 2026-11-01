@@ -19,7 +19,8 @@ class CallRecord:
     goal: str
     language: str
     context: str
-    # business: Friday calls someone for the owner; owner: Friday calls the owner.
+    # business: Friday calls someone for the owner; owner: Friday calls the owner;
+    # owner_in: the owner calls Friday; reception: anyone else calls Friday.
     kind: str = "business"
     id: str = field(default_factory=lambda: f"call_{uuid.uuid4().hex[:12]}")
     # queued -> ringing -> in_progress -> answered | no_answer | failed
@@ -30,7 +31,8 @@ class CallRecord:
     transcript: list[dict[str, str]] = field(default_factory=list)
     latency_ms: list[int] = field(default_factory=list)
     error: str | None = None
-    twilio_sid: str | None = None
+    # The provider's id for the call (Twilio's or Exotel's CallSid).
+    call_sid: str | None = None
     stream_started: bool = False
     # Proves an audio stream belongs to this call; never returned to the model.
     stream_token: str = field(default_factory=lambda: secrets.token_urlsafe(24))
@@ -89,6 +91,17 @@ class CallStore:
 
     def active(self) -> CallRecord | None:
         return next((call for call in self._calls.values() if not call.final), None)
+
+    def waiting_for_audio(self, call_sid: str) -> CallRecord | None:
+        """The call Friday placed whose audio is just arriving: by the
+        provider's call SID, else the one placed call still ringing."""
+        waiting = [
+            call
+            for call in self._calls.values()
+            if not call.final and not call.stream_started and call.kind in ("business", "owner")
+        ]
+        by_sid = next((call for call in waiting if call_sid and call.call_sid == call_sid), None)
+        return by_sid or (waiting[0] if len(waiting) == 1 else None)
 
     def set_stage(self, call_id: str, status: str) -> None:
         record = self._calls[call_id]

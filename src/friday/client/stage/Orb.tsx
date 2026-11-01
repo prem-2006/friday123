@@ -1,7 +1,8 @@
 // Friday: the living orb. A 3D sphere of particles turns inside glowing
 // rings that ripple with the voice level, HUD rings spin around it, waves flow
 // out to both sides, and busy helper Dots orbit around it. Its colour follows
-// what Friday is doing: cyan listening, violet thinking, pink speaking.
+// what Friday is doing, in the Aqua Nebula palette: glacier listening,
+// orchid thinking, lagoon speaking.
 import { useEffect, useRef } from 'react';
 
 export type OrbMode =
@@ -29,11 +30,11 @@ const MODE_SPIN: Record<OrbMode, number> = {
 
 // The particle sphere's colour per mode, as "r,g,b".
 const MODE_TINT: Record<OrbMode, [string, string]> = {
-  idle: ['120,140,255', '170,120,255'],
-  listening: ['56,225,255', '120,170,255'],
-  thinking: ['167,107,255', '236,72,153'],
-  speaking: ['236,72,153', '139,92,246'],
-  working: ['56,225,255', '255,90,209'],
+  idle: ['88,201,243', '47,160,198'],
+  listening: ['189,229,255', '88,201,243'],
+  thinking: ['230,214,234', '47,160,198'],
+  speaking: ['88,201,243', '76,167,161'],
+  working: ['76,167,161', '189,229,255'],
 };
 
 // Evenly spread points on a unit sphere (a Fibonacci lattice).
@@ -53,11 +54,11 @@ function paletteGradient(
   alpha: number,
 ) {
   const stops: [number, string][] = [
-    [0, `rgba(56,225,255,${alpha})`],
-    [0.3, `rgba(79,107,255,${alpha})`],
-    [0.55, `rgba(139,92,246,${alpha})`],
-    [0.75, `rgba(236,72,153,${alpha})`],
-    [1, `rgba(56,225,255,${alpha})`],
+    [0, `rgba(88,201,243,${alpha})`],
+    [0.3, `rgba(47,160,198,${alpha})`],
+    [0.55, `rgba(76,167,161,${alpha})`],
+    [0.75, `rgba(230,214,234,${alpha})`],
+    [1, `rgba(88,201,243,${alpha})`],
   ];
   if ('createConicGradient' in ctx) {
     const gradient = ctx.createConicGradient(angle, cx, cy);
@@ -163,9 +164,9 @@ export function Orb({
       // Halo behind everything.
       ctx.globalCompositeOperation = 'source-over';
       const halo = ctx.createRadialGradient(cx, cy, R * 0.3, cx, cy, R * 3.4);
-      halo.addColorStop(0, `rgba(79,107,255,${0.28 + e * 0.35})`);
-      halo.addColorStop(0.35, `rgba(124,58,237,${0.1 + e * 0.12})`);
-      halo.addColorStop(1, 'rgba(5,8,22,0)');
+      halo.addColorStop(0, `rgba(47,160,198,${0.28 + e * 0.35})`);
+      halo.addColorStop(0.35, `rgba(28,78,117,${0.1 + e * 0.12})`);
+      halo.addColorStop(1, 'rgba(6,24,38,0)');
       ctx.fillStyle = halo;
       ctx.fillRect(0, 0, w, h);
 
@@ -177,10 +178,10 @@ export function Orb({
           const endX = side < 0 ? 0 : w;
           const span = Math.abs(endX - startX);
           const gradient = ctx.createLinearGradient(startX, 0, endX, 0);
-          gradient.addColorStop(0, `rgba(139,92,246,${0.7 - i * 0.12})`);
-          gradient.addColorStop(0.35, `rgba(79,107,255,${0.65 - i * 0.12})`);
-          gradient.addColorStop(0.7, `rgba(56,225,255,${0.4 - i * 0.08})`);
-          gradient.addColorStop(1, 'rgba(56,225,255,0)');
+          gradient.addColorStop(0, `rgba(189,229,255,${0.7 - i * 0.12})`);
+          gradient.addColorStop(0.35, `rgba(88,201,243,${0.65 - i * 0.12})`);
+          gradient.addColorStop(0.7, `rgba(47,160,198,${0.4 - i * 0.08})`);
+          gradient.addColorStop(1, 'rgba(47,160,198,0)');
           ctx.beginPath();
           for (let step = 0; step <= span; step += 4) {
             const u = step / span;
@@ -204,7 +205,7 @@ export function Orb({
           ctx.strokeStyle = gradient;
           ctx.lineWidth = 2.6 - i * 0.45;
           ctx.shadowBlur = 16;
-          ctx.shadowColor = 'rgba(124,58,237,0.9)';
+          ctx.shadowColor = 'rgba(47,160,198,0.9)';
           ctx.stroke();
         }
       }
@@ -232,7 +233,7 @@ export function Orb({
           cy,
           R * 1.25,
         );
-        const hue = ['79,107,255', '139,92,246', '236,72,153'][k];
+        const hue = ['47,160,198', '76,167,161', '230,214,234'][k];
         bloom.addColorStop(0, `rgba(${hue},0)`);
         bloom.addColorStop(0.8, `rgba(${hue},${0.1 + e * 0.12})`);
         bloom.addColorStop(1, `rgba(${hue},0)`);
@@ -267,7 +268,7 @@ export function Orb({
         );
         ctx.lineWidth = 2.4 - k * 0.2;
         ctx.shadowBlur = 28;
-        ctx.shadowColor = 'rgba(91,108,255,0.95)';
+        ctx.shadowColor = 'rgba(88,201,243,0.95)';
         ctx.stroke();
       }
 
@@ -275,9 +276,9 @@ export function Orb({
       ctx.globalCompositeOperation = 'source-over';
       ctx.shadowBlur = 0;
       const core = ctx.createRadialGradient(cx, cy, R * 0.1, cx, cy, R * 0.92);
-      core.addColorStop(0, 'rgba(10,12,40,0.9)');
-      core.addColorStop(0.8, 'rgba(8,10,34,0.75)');
-      core.addColorStop(1, 'rgba(8,10,34,0)');
+      core.addColorStop(0, 'rgba(6,24,38,0.92)');
+      core.addColorStop(0.8, 'rgba(6,24,38,0.75)');
+      core.addColorStop(1, 'rgba(6,24,38,0)');
       ctx.fillStyle = core;
       ctx.beginPath();
       ctx.arc(cx, cy, R * 0.92, 0, Math.PI * 2);

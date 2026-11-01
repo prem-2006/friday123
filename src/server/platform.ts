@@ -225,8 +225,20 @@ export class Platform {
   }
   // FRIDAY: a helper Dot works in its own "Tasks from Friday" conversation,
   // run directly here (no remote round trips) so delegation stays quick.
-  readonly delegate: Delegate = (helper, task, signal) =>
-    runHelperTask(this, helper.id, HELPER_THREAD_TITLE, task, signal);
+  readonly delegate: Delegate = async (helper, task, signal) => {
+    const report = await runHelperTask(
+      this,
+      helper.id,
+      HELPER_THREAD_TITLE,
+      task,
+      signal,
+    );
+    // FRIDAY: Mail's conversation map goes to the Obsidian vault, so "what
+    // is pending?" can be answered from it, and it joins the memory graph.
+    if (helper.name === 'Mail' && report.trim())
+      await this.obsidianMemory?.saveMailMap(task, report).catch(() => {});
+    return report;
+  };
   async turn(
     threadId: string,
     prompt: string,

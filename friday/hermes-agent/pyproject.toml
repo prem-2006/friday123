@@ -1,0 +1,15 @@
+[project]
+name = "friday-hermes"
+version = "0.1.0"
+description = "Hermes Agent (Nous Research, MIT) as Friday's helper for multi-step browser jobs, in its own environment."
+requires-python = ">=3.11,<3.13"
+license = "MIT"
+dependencies = ["hermes-agent"]
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]

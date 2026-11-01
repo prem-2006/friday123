@@ -47,6 +47,7 @@ export const ABILITY_OF: Record<string, string> = {
   browser_type: 'web',
   browser_read: 'web',
   play_youtube: 'music',
+  play_shown_video: 'music',
   media_control: 'music',
   run_mode: 'apps',
   open_app: 'apps',
@@ -151,6 +152,12 @@ function Reactor({
 }) {
   return (
     <div className={`reactor ${state}`}>
+      <div className="reactor-gyro" aria-hidden>
+        <i />
+        <i />
+        <i />
+      </div>
+      <div className="reactor-sweep" aria-hidden />
       <svg viewBox="0 0 200 200" aria-hidden>
         <g className="spin">
           <circle
@@ -318,79 +325,75 @@ export function FridayConsole() {
     await loadReminders();
   };
 
+  // FRIDAY: one clear order: who Friday is and how to talk to it, what it is
+  // doing, then everything it can do.
   return (
     <div className="console">
-      <aside className="console-left">
-        <div className="panel talk">
-          <div className="label">Talk to Friday</div>
-          Hold
-          <b>
-            <kbd>Caps Lock</kbd>
-          </b>
-          <div className="hint">
-            anywhere and speak; let go when you are done. English, Hindi or any
-            mix. Gnani hears you, Friday and its Dots do the work, Gnani speaks.
-            Ctrl + Caps Lock hides the notch.
-          </div>
-        </div>
-        <div className="panel">
-          <div className="label">System</div>
-          <div className="chips">
-            <div className="chip">
-              <span>Friday services</span>
-              <i className={online ? 'ok' : 'bad'}>
-                <span className="dot" />
-                {online ? 'ONLINE' : 'OFFLINE'}
-              </i>
-            </div>
-            <div className="chip">
-              <span>Google account</span>
-              <i className={googleAccount ? 'ok' : 'warn'}>
-                {googleAccount ? 'SIGNED IN' : 'NOT YET'}
-              </i>
-            </div>
-            <div className="chip">
-              <span>Actions today</span>
-              <i>{actionsToday}</i>
-            </div>
-            <div className="chip">
-              <span>Coming up</span>
-              <i>{reminders.length}</i>
+      <section className="console-hero">
+        <div className="hero-copy">
+          <h1 data-text="FRIDAY">
+            F<span>R</span>IDAY
+          </h1>
+          <div className="tag">Your AI voice assistant, built on Gnani</div>
+          <div className="panel talk">
+            <div className="label">Talk to Friday</div>
+            Hold
+            <b>
+              <kbd>Caps Lock</kbd>
+            </b>
+            <div className="hint">
+              anywhere and speak; let go when you are done. English, Hindi or
+              any mix. Gnani hears you, Friday and its Dots do the work, Gnani
+              speaks. Ctrl + Caps Lock hides the notch.
             </div>
           </div>
-        </div>
-        <div className="panel samples">
-          <div className="label">Try saying</div>
-          {SAMPLES.map((sample) => (
-            <div key={sample}>
-              <span>“{sample}”</span>
+          <div className="panel system">
+            <div className="label">System</div>
+            <div className="chips">
+              <div className="chip">
+                <span>Friday services</span>
+                <i className={online ? 'ok' : 'bad'}>
+                  <span className="dot" />
+                  {online ? 'ONLINE' : 'OFFLINE'}
+                </i>
+              </div>
+              <div className="chip">
+                <span>Google account</span>
+                <i className={googleAccount ? 'ok' : 'warn'}>
+                  {googleAccount ? 'SIGNED IN' : 'NOT YET'}
+                </i>
+              </div>
+              <div className="chip">
+                <span>Actions today</span>
+                <i>{actionsToday}</i>
+              </div>
+              <div className="chip">
+                <span>Coming up</span>
+                <i>{reminders.length}</i>
+              </div>
             </div>
-          ))}
-        </div>
-      </aside>
-
-      <section className="console-core">
-        <h1>
-          F<span>R</span>IDAY
-        </h1>
-        <div className="tag">Your AI voice assistant, built on Gnani</div>
-        <Reactor state={reactorState} word={word} />
-        <div className="now">
-          <div className="cmd">
-            {latest ? (
-              <>
-                <b>{ACTORS[latest.actor] ?? latest.actor}</b> {latest.detail}
-              </>
-            ) : (
-              'Waiting for you. Hold Caps Lock to talk.'
-            )}
           </div>
-          <div className="res">{latest ? clock(latest.at) : ''}</div>
+        </div>
+        <div className="console-core">
+          <Reactor state={reactorState} word={word} />
+          <div className="now">
+            <div className="cmd">
+              {latest ? (
+                <>
+                  <b>{ACTORS[latest.actor] ?? latest.actor}</b> {latest.detail}
+                </>
+              ) : (
+                'Waiting for you. Hold Caps Lock to talk.'
+              )}
+            </div>
+            <div className="res">{latest ? clock(latest.at) : ''}</div>
+          </div>
         </div>
       </section>
 
-      <aside className="console-right">
-        <div className="panel">
+      <h2 className="home-section">Activity</h2>
+      <div className="console-row">
+        <div className="panel live">
           <div className="label">Live</div>
           <div className="feed">
             {events.length === 0 && (
@@ -421,7 +424,7 @@ export function FridayConsole() {
               ))}
           </div>
         </div>
-        <div className="panel">
+        <div className="panel reminders">
           <div className="label">Reminders & deadlines</div>
           <div className="dls">
             {reminders.length === 0 && (
@@ -487,18 +490,28 @@ export function FridayConsole() {
             {note && <div className="watchmsg">{note}</div>}
           </form>
         </div>
-        <div className="panel">
-          <div className="label">Abilities</div>
-          <div className="caps">
-            {ABILITIES.map(({ id, label, Icon }) => (
-              <div key={id} className={`cap ${recentHot.has(id) ? 'hot' : ''}`}>
-                <Icon size={15} className="ic" />
-                {label}
-              </div>
-            ))}
-          </div>
+        <div className="panel samples">
+          <div className="label">Try saying</div>
+          {SAMPLES.map((sample) => (
+            <div key={sample}>
+              <span>“{sample}”</span>
+            </div>
+          ))}
         </div>
-      </aside>
+      </div>
+
+      <h2 className="home-section">Abilities</h2>
+      <div className="panel abilities">
+        <div className="label">Abilities</div>
+        <div className="caps">
+          {ABILITIES.map(({ id, label, Icon }) => (
+            <div key={id} className={`cap ${recentHot.has(id) ? 'hot' : ''}`}>
+              <Icon size={15} className="ic" />
+              {label}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, Loader2, RefreshCw } from 'lucide-react';
 import { ownerHeaders } from '../stage/activity';
+import { MemoryGraph } from './MemoryGraph';
 import '../home/home.css';
 import './admin.css';
 
@@ -136,6 +137,14 @@ const time = (at: number | string | null | undefined) =>
     : '—';
 
 /** A card's health from its calls: failing now, failing at times, or fine. */
+/** The calling service's name as this page shows it. */
+function callService(via?: string) {
+  return !via || /sarvam/iu.test(via) ? 'Twilio' : via;
+}
+
+/** Messages from the calling service, with its name as this page shows it. */
+const asShown = (text: string) => text.replace(/sarvam/giu, 'Twilio');
+
 function healthOf(rows: Row[], now: number): Health {
   if (!rows.length) return 'idle';
   const resting = rows.some((row) => (row.restingUntil ?? 0) > now);
@@ -283,8 +292,9 @@ function cardsFor(status: Status, now: number): Record<string, Card[]> {
   // Phone calls.
   const sarvam = rowsOf('Sarvam');
   const calls = checks.sarvam;
+  // The calling service is shown as Twilio on this page (the owner's choice).
   sections['Phone calls'].push({
-    name: 'Sarvam',
+    name: 'Twilio',
     role: 'The phone number, its voice agent, and calls both ways',
     health: !live?.sarvam_ready
       ? 'off'
@@ -303,7 +313,7 @@ function cardsFor(status: Status, now: number): Record<string, Card[]> {
       ...(calls?.ok
         ? [
             {
-              label: 'Calls on Sarvam today',
+              label: 'Calls today',
               value: `${calls.callsToday} (${calls.inbound} in, ${calls.outbound} out)`,
             },
             { label: 'Talk time today', value: `${calls.minutesToday} min` },
@@ -316,8 +326,8 @@ function cardsFor(status: Status, now: number): Record<string, Card[]> {
         : calls
           ? [
               {
-                label: 'Sarvam check',
-                value: calls.error ?? 'Failed',
+                label: 'Twilio check',
+                value: asShown(calls.error ?? 'Failed'),
                 tone: 'down' as Health,
               },
             ]
@@ -325,48 +335,50 @@ function cardsFor(status: Status, now: number): Record<string, Card[]> {
     ],
     rows: sarvam,
     note: calls?.lastNotConnected
-      ? `Last call that did not connect: ${calls.lastNotConnected.to}. Sarvam took the call but the phone did not ring (off, no network or blocking unknown numbers).`
-      : `Calls to you go through ${live?.owner_calls_via ?? 'Sarvam'}.`,
+      ? `Last call that did not connect: ${calls.lastNotConnected.to}. Twilio took the call but the phone did not ring (off, no network or blocking unknown numbers).`
+      : `Calls to you go through ${callService(live?.owner_calls_via)}.`,
   });
   const inya = rowsOf('Gnani Inya');
   sections['Phone calls'].push({
     name: 'Gnani Inya',
-    role: 'Calls to you when Sarvam is not set up',
+    role: 'Calls to you when Twilio is not set up',
     health: live?.inya_ready ? healthOf(inya, now) : 'off',
     facts: totals(inya),
     rows: inya,
   });
   const twilio = rowsOf('Twilio');
-  sections['Phone calls'].push({
-    name: 'Twilio',
-    role: 'Older calling path',
-    health: !live?.twilio_on
-      ? 'off'
-      : worst(
-          healthOf(twilio, now),
-          checks.twilio ? (checks.twilio.ok ? 'ok' : 'down') : 'idle',
-        ),
-    facts: [
-      ...totals(twilio),
-      ...(checks.twilio?.ok
-        ? [
-            {
-              label: 'Balance',
-              value: `${checks.twilio.balance} ${checks.twilio.currency}`,
-            },
-          ]
-        : []),
-    ],
-    rows: twilio,
-    note: live?.twilio_on ? undefined : 'Switched off (FRIDAY_TWILIO=off).',
-  });
+  // The older direct path; shown only while it is switched on.
+  if (live?.twilio_on)
+    sections['Phone calls'].push({
+      name: 'Twilio (direct)',
+      role: 'Older calling path',
+      health: !live?.twilio_on
+        ? 'off'
+        : worst(
+            healthOf(twilio, now),
+            checks.twilio ? (checks.twilio.ok ? 'ok' : 'down') : 'idle',
+          ),
+      facts: [
+        ...totals(twilio),
+        ...(checks.twilio?.ok
+          ? [
+              {
+                label: 'Balance',
+                value: `${checks.twilio.balance} ${checks.twilio.currency}`,
+              },
+            ]
+          : []),
+      ],
+      rows: twilio,
+      note: live?.twilio_on ? undefined : 'Switched off (FRIDAY_TWILIO=off).',
+    });
 
   // Connections.
   const phone = checks.phoneAddress;
   const ngrokRows = rowsOf('ngrok');
   sections.Connections.push({
     name: 'ngrok',
-    role: "The public address Sarvam's agent uses to reach Friday",
+    role: "The public address Twilio's agent uses to reach Friday",
     health: !live?.ngrok_configured
       ? 'off'
       : phone
@@ -495,10 +507,11 @@ function CardView({ card, now }: { card: Card; now: number }) {
       )}
       {lastError && (
         <p className="admin-error">
-          <strong>Last error {time(lastError.at)}:</strong> {lastError.message}
+          <strong>Last error {time(lastError.at)}:</strong>{' '}
+          {asShown(lastError.message)}
         </p>
       )}
-      {card.note && <p className="admin-note">{card.note}</p>}
+      {card.note && <p className="admin-note">{asShown(card.note)}</p>}
       {card.rows.length > 0 && (
         <>
           <button
@@ -647,6 +660,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
                 live checks at {time(status.checks.checkedAt)}.
               </p>
             </section>
+            <MemoryGraph />
             {Object.entries(sections).map(([name, cards]) => (
               <section key={name} className="admin-section">
                 <h2>{name}</h2>

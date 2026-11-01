@@ -6,8 +6,16 @@ import {
   unlink,
   writeFile,
 } from 'node:fs/promises';
-import { basename, extname, join, relative, resolve } from 'node:path';
+import {
+  basename,
+  extname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+} from 'node:path';
 import type { Memory } from '../../shared/types.js';
+import { buildGraph, topicLinks, type MemoryGraph } from './memory-graph.js';
 
 export interface ObsidianRecall {
   path: string;
@@ -133,7 +141,62 @@ const STOP_WORDS = new Set([
 export class ObsidianMemory {
   private cache?: { expiresAt: number; root: string; notes: IndexedNote[] };
 
-  constructor(private readonly configuredPath: () => string) {}
+  constructor(
+    private readonly configuredPath: () => string,
+    /** Contact names, so notes link to the people they mention. */
+    private readonly people: () => string[] = () => [],
+  ) {}
+
+  private peopleOrNone() {
+    try {
+      return this.people();
+    } catch {
+      return []; // no contacts file yet: topics alone
+    }
+  }
+
+  /** "Related: [[Calls]] · [[Prince]]": Obsidian draws these as links. */
+  private related(text: string, extra: string[] = []) {
+    const names = [
+      ...new Set([...extra, ...topicLinks(text, this.peopleOrNone())]),
+    ];
+    return names.length
+      ? ['', `Related: ${names.map((name) => `[[${name}]]`).join(' · ')}`]
+      : [];
+  }
+
+  /** Every note as Obsidian's graph view would draw it. */
+  async graph(): Promise<MemoryGraph & { vault: string }> {
+    return {
+      vault: this.vaultPath(),
+      ...buildGraph(await this.index(), this.peopleOrNone()),
+    };
+  }
+
+  /** One note's text, by its path inside the vault (never outside it). */
+  async readNote(path: string) {
+    const root = this.vaultPath();
+    const file = resolve(root, path);
+    const inside = relative(root, file);
+    if (
+      !inside ||
+      inside.startsWith('..') ||
+      isAbsolute(inside) ||
+      extname(file).toLocaleLowerCase() !== '.md'
+    )
+      return undefined;
+    try {
+      const markdown = await readFile(file, 'utf8');
+      return {
+        path: inside.replaceAll('\\', '/'),
+        title: basename(file).replace(/\.md$/iu, ''),
+        content: markdown.replace(/^---\s*[\s\S]*?\n---\s*/u, '').trim(),
+        file,
+      };
+    } catch {
+      return undefined;
+    }
+  }
 
   vaultPath(pathOverride?: string) {
     const configured = (pathOverride ?? this.configuredPath()).trim();
@@ -163,9 +226,38 @@ export class ObsidianMemory {
       '# Saved memory',
       '',
       memory.text.trim(),
+      ...this.related(memory.text),
       '',
     ].join('\n');
     await writeFile(join(folder, `${id}.md`), note, 'utf8');
+    this.cache = undefined;
+  }
+
+  /** Mail's latest conversation map (who is waiting on whom), as one note
+   * kept up to date, plus a copy for the day. */
+  async saveMailMap(task: string, report: string) {
+    const root = this.vaultPath();
+    const now = Date.now();
+    const { date, time } = this.localDateTime(now);
+    const folder = join(root, 'Friday', 'Mail');
+    await mkdir(folder, { recursive: true });
+    const note = [
+      '---',
+      `updated: ${new Date(now).toISOString()}`,
+      'tags:',
+      '  - friday/mail',
+      '---',
+      '',
+      `# Gmail conversation map · ${date} ${time}`,
+      '',
+      `Asked: ${task.trim()}`,
+      '',
+      report.trim(),
+      ...this.related(report, ['Email', date]),
+      '',
+    ].join('\n');
+    await writeFile(join(folder, 'Conversation map.md'), note, 'utf8');
+    await writeFile(join(folder, `${date}.md`), note, 'utf8');
     this.cache = undefined;
   }
 
@@ -207,6 +299,7 @@ export class ObsidianMemory {
       `**Owner:** ${input.userText.trim()}`,
       '',
       `**Friday:** ${input.assistantText.trim()}`,
+      ...this.related(`${input.userText}\n${input.assistantText}`, [date]),
       '',
     ].join('\n');
     await writeFile(join(folder, `${safeId}.md`), note, 'utf8');

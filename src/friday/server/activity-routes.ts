@@ -66,10 +66,18 @@ export function fridayActivityRoutes({
   );
   app.post('/friday/activity/stop', () => relay('/activity/stop', 'POST'));
   app.post('/friday/activity/resume', () => relay('/activity/resume', 'POST'));
+  // "Hey Friday" or a double clap: the wake greeting is spoken, listen now.
+  app.post('/friday/wake/ready', () => relay('/wake/ready', 'POST'));
   // Friday's main page: its Google account and one-click shortcuts.
   app.get('/friday/account/google', () => relay('/account/google'));
   app.post('/friday/account/google/connect', async (c) =>
     relay('/account/google/connect', 'POST', undefined, await c.req.text()),
+  );
+  // The owner's own Chrome: its signed-in Google accounts, and opening a
+  // page there (Gmail, an app's sign-in) instead of in Friday's own Chrome.
+  app.get('/friday/account/chrome', () => relay('/account/chrome'));
+  app.post('/friday/browser/open-mine', async (c) =>
+    relay('/browser/open-mine', 'POST', undefined, await c.req.text()),
   );
   app.post('/friday/browser/open', async (c) =>
     relay('/browser/open', 'POST', undefined, await c.req.text()),

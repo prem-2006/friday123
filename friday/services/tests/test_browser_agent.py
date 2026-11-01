@@ -125,3 +125,17 @@ def test_browser_task_failure_and_stop(server):
     result = browser(server).call("browser_task", {"task": "Anything"})
     assert result["isError"] and "pressed stop" in result["text"]
     assert len(server.browser_agent.tasks) == 1
+
+
+def test_hermes_is_navigators_engine_when_installed(tmp_path):
+    from friday_services.browser_agent import agent_from_settings
+
+    hermes, use = tmp_path / "hermes-agent", tmp_path / "browser-agent"
+    for folder in (hermes, use):
+        (folder / ".venv" / "Scripts").mkdir(parents=True)
+        (folder / ".venv" / "Scripts" / "python.exe").write_text("")
+        (folder / "run_task.py").write_text("")
+    assert "hermes-agent" in str(agent_from_settings(use, tmp_path, hermes)._command()[1])
+    picked = agent_from_settings(use, tmp_path, hermes, "browser-use")
+    assert "browser-agent" in str(picked._command()[1])
+    assert "browser-agent" in str(agent_from_settings(use, tmp_path, tmp_path / "none")._command()[1])

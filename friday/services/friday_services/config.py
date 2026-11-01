@@ -19,6 +19,20 @@ CALL_SETTINGS = (
     "TWILIO_FROM_NUMBER",
     "PUBLIC_URL",
 )
+# Friday's own calls through Exotel (an Indian number): the same Pipecat
+# pipeline, with Exotel's Voicebot applet streaming the audio (calls/exotel.py).
+EXOTEL_CALL_SETTINGS = (
+    "GNANI_API_KEY",
+    "EVON_BASE_URL",
+    "EVON_MODEL",
+    "EXOTEL_API_KEY",
+    "EXOTEL_API_TOKEN",
+    "EXOTEL_ACCOUNT_SID",
+    "EXOTEL_CALLER_ID",
+    "EXOTEL_APP_ID",
+    "EXOTEL_STREAM_KEY",
+    "PUBLIC_URL",
+)
 
 
 @dataclass(frozen=True)
@@ -73,6 +87,24 @@ class Settings:
         return self.get("PUBLIC_URL").rstrip("/")
 
     @property
+    def call_provider(self) -> str:
+        """Who carries Friday's own calls: exotel or twilio. FRIDAY_CALL_PROVIDER
+        picks; else Exotel once its API key is set."""
+        chosen = self.get("FRIDAY_CALL_PROVIDER").lower()
+        if chosen in ("exotel", "twilio"):
+            return chosen
+        return "exotel" if self.get("EXOTEL_API_KEY") else "twilio"
+
+    @property
+    def call_settings(self) -> tuple[str, ...]:
+        return EXOTEL_CALL_SETTINGS if self.call_provider == "exotel" else CALL_SETTINGS
+
+    @property
+    def own_calls_ready(self) -> bool:
+        """Whether Friday's own pipeline can place and answer calls."""
+        return not self.missing(self.call_settings)
+
+    @property
     def calendar_url(self) -> str:
         # Navigator's browser runs on the owner's screen, so localhost works.
         return self.get("FRIDAY_CALENDAR_URL", f"http://127.0.0.1:{self.port}/calendar").rstrip("/")
@@ -96,17 +128,38 @@ class Settings:
         return float(self.get("FRIDAY_CLAP_LEVEL", "0.25"))
 
     @property
+    def wake_word(self) -> bool:
+        # "Hey Friday": an offline Vosk model listens for the phrase only.
+        return self.get("FRIDAY_WAKE_WORD", "true").lower() != "false"
+
+    @property
+    def wake_greeting(self) -> bool:
+        # On waking, Friday says hello about what is on screen before listening.
+        return self.get("FRIDAY_WAKE_GREETING", "true").lower() != "false"
+
+    @property
+    def wake_model_dir(self) -> Path:
+        return Path(self.get("FRIDAY_WAKE_MODEL_DIR") or self.data_dir / "wake-word")
+
+    @property
     def stage_url(self) -> str:
         # Opened by a double clap when no voice screen is open.
         return self.get("FRIDAY_STAGE_URL", "http://localhost:5173/#/friday")
 
     @property
     def browser_prewarm(self) -> bool:
-        return self.get("FRIDAY_BROWSER_PREWARM", "true").lower() != "false"
+        # Off: Friday's own Chrome opens only when a web task needs it, not at
+        # every start (FRIDAY_BROWSER_PREWARM=true opens it at start again).
+        return self.get("FRIDAY_BROWSER_PREWARM", "false").lower() == "true"
 
     @property
     def browser_agent_dir(self) -> Path:
         return Path(self.get("FRIDAY_BROWSER_AGENT_DIR") or REPO_ROOT / "friday" / "browser-agent")
+
+    @property
+    def hermes_agent_dir(self) -> Path:
+        # Hermes Agent, Navigator's engine when installed (FRIDAY_BROWSER_AGENT).
+        return Path(self.get("FRIDAY_HERMES_AGENT_DIR") or REPO_ROOT / "friday" / "hermes-agent")
 
     @property
     def evon_disable_thinking(self) -> bool:

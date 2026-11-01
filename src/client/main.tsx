@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import './style.css';
 import './editor.css';
+import '../friday/client/nebula.css';
 import { watchSystemTheme } from './theme';
 watchSystemTheme();
 createRoot(document.getElementById('root')!).render(

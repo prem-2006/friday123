@@ -24,6 +24,7 @@ def test_quick_tools_and_which_only_look(server):
     tools = quick(server).tools()
     assert set(tools) == {
         "open_app",
+        "close_app",
         "write_in_app",
         "clear_in_app",
         "press_keys_in_app",
@@ -35,8 +36,11 @@ def test_quick_tools_and_which_only_look(server):
         "open_website",
         "play_youtube",
         "web_search",
+        "play_shown_video",
         "look_at_screen",
         "snap_window",
+        "watch_window",
+        "stop_watching",
         "set_timer",
         "add_reminder",
         "add_deadline",
@@ -66,10 +70,15 @@ def test_open_play_and_search_say_what_happened(server):
     assert opened["friday_say"] == "Notepad is open."
     assert server.launched == ["notepad"]
     site = client.call("open_website", {"url": "example.test"})["data"]
-    assert site["friday_say"] == "Opened Example."
+    assert site["friday_say"] == "Opening Example."
     played = client.call("play_youtube", {"query": "lofi"})["data"]
-    assert played["friday_say"] == "Playing Lo-fi beats to study to on YouTube."
+    # Short: only the start of the title, and not always the same words.
+    assert "Lo-fi beats to study" in played["friday_say"]
+    assert "YouTube" not in played["friday_say"]
     found = client.call("web_search", {"site": "youtube", "query": "lofi"})["data"]
+    shown = client.call("play_shown_video", {"n": 2})["data"]
+    assert "Rain sounds" in shown["friday_say"]
+    assert server.browser.log[-1] == ("play_shown", 2)
     assert found["friday_say"] == (
         "Top results on YouTube: Lo-fi beats to study to; Lo-fi channel; Rain sounds."
     )
@@ -86,6 +95,11 @@ def test_look_and_snap(server):
     placed = client.call("snap_window", {"window": "notepad", "position": "top-left"})["data"]
     assert placed["friday_say"] == "Untitled - Notepad is on the top left."
     assert server.snapped == [("notepad", "top-left")]
+    other = client.call(
+        "snap_window", {"window": "notepad", "position": "maximize", "screen": "monitor"}
+    )["data"]
+    assert other["friday_say"] == "Untitled - Notepad is maximized on the monitor."
+    assert server.snapped[-1] == ("notepad", "maximize", "monitor")
     bad = client.call("snap_window", {"window": "notepad", "position": "middle"})
     assert bad["isError"]
 
@@ -230,3 +244,52 @@ def test_meetings_are_marked_as_sending_and_filled_in(server):
     assert "add=ruchita%40example.com" in url and "ctz=Asia%2FKolkata" in url
     bad = client.call("schedule_meeting", {"title": "x", "start": "tomorrow 3pm"})
     assert bad["isError"] and "date and time" in bad["text"]
+
+
+def test_video_replies_keep_only_the_short_part_of_the_title():
+    from friday_services.mcp_quick import playing_sentence, video_name
+
+    assert video_name("Kesariya - Full Song | Brahmastra | Ranbir (4K)") == "Kesariya"
+    assert video_name("Tum Hi Ho ft. Arijit Singh") == "Tum Hi Ho"
+    assert video_name("Arijit Singh Best Songs 2026 Jukebox") == "Arijit Singh Best Songs…"
+    assert playing_sentence("Kesariya (Official Video)", lambda options: options[0]) == (
+        "Playing Kesariya."
+    )
+    assert playing_sentence("") == "Playing it."
+
+
+def test_status_answers_only_what_was_asked():
+    from datetime import datetime
+
+    from friday_services.organizer import status_sentence
+
+    now = datetime(2026, 10, 30, 8, 23)
+    charging, unplugged = {"percent": 52, "charging": True}, {"percent": 52, "charging": False}
+    assert (
+        status_sentence(charging, now, "battery") == "Yes, the laptop is charging, at 52 percent."
+    )
+    assert status_sentence(unplugged, now, "battery") == (
+        "No, it's not charging. Battery is at 52 percent."
+    )
+    assert status_sentence(charging, now, "battery", hinglish=True) == (
+        "Haan, laptop charge ho raha hai, abhi 52 percent hai."
+    )
+    assert status_sentence(unplugged, now, "battery", hinglish=True) == (
+        "Nahi, laptop charge nahi ho raha, abhi 52 percent hai."
+    )
+    assert status_sentence({"percent": 100, "charging": True}, now, "battery") == (
+        "Yes, it's plugged in and fully charged."
+    )
+    assert status_sentence(charging, now, "time") == "It's 8:23 AM."
+    assert status_sentence(charging, now, "date", hinglish=True) == "Aaj Friday, 30 October hai."
+    assert "8:23 AM" in status_sentence(charging, now)
+
+
+def test_sites_are_called_by_name_never_by_address():
+    from friday_services.mcp_quick import site_name
+
+    assert site_name("https://mail.google.com/mail/u/0") == "Gmail"
+    assert site_name("https://www.youtube.com/watch?v=abc") == "YouTube"
+    assert site_name("irctc.co.in") == "IRCTC"
+    assert site_name("https://in.linkedin.com/in/prem") == "LinkedIn"
+    assert site_name("bbc.co.uk") == "BBC"

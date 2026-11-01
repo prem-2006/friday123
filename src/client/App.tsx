@@ -12,6 +12,10 @@ import { StageLink } from '../friday/client/StageLink';
 import { FridayHome, HOME_HASH } from '../friday/client/home/FridayHome';
 import { ADMIN_HASH, AdminPage } from '../friday/client/admin/AdminPage';
 import { NOTCH_DEMO_HASH, NotchDemo } from '../friday/client/stage/Notch';
+import {
+  ActivityToast,
+  TOAST_HASH,
+} from '../friday/client/stage/ActivityToast';
 
 // FRIDAY: the desktop notch page (friday/desktop).
 const NOTCH_HASH = '#/notch';
@@ -282,6 +286,8 @@ export function App() {
   // shows its offline pill (which retries), never the full-page screens below.
   // FRIDAY: every notch state with a made-up voice, for its design.
   if (location.hash.startsWith(NOTCH_DEMO_HASH)) return <NotchDemo />;
+  // FRIDAY: the live task toast window (friday/desktop), current step only.
+  if (location.hash === TOAST_HASH) return <ActivityToast />;
   if (fridayScreen === 'notch' && (needsAuth || !state || !workspace || !dot))
     return <FridayStage variant="notch" configured={false} onExit={() => {}} />;
   if (needsAuth)

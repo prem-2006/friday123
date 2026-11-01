@@ -13,7 +13,7 @@ from pydantic import Field
 
 from friday_services.calls.sarvam import SarvamDialer
 from friday_services.calls.store import CallRecord, CallStore
-from friday_services.config import CALL_SETTINGS, Settings
+from friday_services.config import Settings
 from friday_services.organizer import OrganizerError, Reminders, parse_when, spoken_time
 from friday_services.voices import DEFAULT_LANGUAGE, LANGUAGES
 
@@ -24,6 +24,32 @@ MAX_WAIT_SECONDS = 40
 
 class Dialer(Protocol):
     async def place(self, record: CallRecord) -> str: ...
+
+
+async def place_own_call(
+    store: CallStore,
+    dialer: Dialer,
+    phone: str,
+    goal: str,
+    language: str = DEFAULT_LANGUAGE,
+    context: str = "",
+    opening_line: str = "",
+) -> CallRecord:
+    """Friday's own pipeline phones someone for the owner (Exotel or Twilio).
+    The record is failed, not raised, when the provider refuses."""
+    busy = store.active()
+    if busy:
+        raise ToolError(f"Call {busy.id} is still in progress. Wait for its result first.")
+    if opening_line.strip():
+        context = f"Open the call with: {opening_line.strip()}\n{context}".strip()
+    record = store.create(phone=phone, goal=goal, language=language, context=context)
+    try:
+        record.call_sid = await dialer.place(record)
+    except Exception as error:
+        store.finish(record.id, "failed", error=str(error))
+        return record
+    store.set_stage(record.id, "ringing")
+    return record
 
 
 async def call_someone(
@@ -113,7 +139,9 @@ def build_phone_server(
             raise ToolError("Use an international number such as +919812345678.")
         if language not in LANGUAGES:
             raise ToolError(f"Unsupported language. Use one of: {', '.join(LANGUAGES)}.")
-        if sarvam and sarvam.ready:
+        own_ready = settings.own_calls_ready
+        # Friday's own pipeline when it is set up; Sarvam's agent otherwise.
+        if sarvam and sarvam.ready and not own_ready:
             # Sarvam's agent runs the call (an Indian number, no trial notice);
             # Twilio is the fallback when Sarvam refuses.
             try:
@@ -128,21 +156,14 @@ def build_phone_server(
                     ),
                 }
             except Exception as error:
-                if settings.missing(CALL_SETTINGS):
+                if not own_ready:
                     raise ToolError(f"The call could not be placed: {error}") from error
-        missing = settings.missing(CALL_SETTINGS)
+        missing = settings.missing(settings.call_settings)
         if missing:
             raise ToolError(f"Phone calls are not set up. Missing in .env: {', '.join(missing)}.")
-        busy = store.active()
-        if busy:
-            raise ToolError(f"Call {busy.id} is still in progress. Wait for its result first.")
-        record = store.create(phone=phone, goal=goal, language=language, context=context)
-        try:
-            record.twilio_sid = await dialer.place(record)
-        except Exception as error:
-            store.finish(record.id, "failed", error=str(error))
+        record = await place_own_call(store, dialer, phone, goal, language, context, opening_line)
+        if record.final:
             return record.result()
-        store.set_stage(record.id, "ringing")
         return {
             **record.result(),
             "next_step": "Call get_call_result with this call_id to wait for the outcome.",
@@ -152,7 +173,7 @@ def build_phone_server(
         name="schedule_call",
         title="Schedule a phone call",
         description=(
-            "Phone someone else at a later time, through Sarvam: when is the owner's local "
+            "Phone someone else at a later time: when is the owner's local "
             "time in India with no time zone, e.g. 2026-10-24T12:00. Use the owner's "
             "contacts for names. goal is everything to say or ask; opening_line is the "
             "warm first sentence, e.g. 'Hi Didi, this is Friday, Prem's assistant. Time "
@@ -171,8 +192,8 @@ def build_phone_server(
     ) -> dict:
         if not PHONE_NUMBER.match(phone):
             raise ToolError("Use an international number such as +919812345678.")
-        if reminders is None or not (sarvam and sarvam.ready):
-            raise ToolError("Scheduled calls need Sarvam set up.")
+        if reminders is None or not (settings.own_calls_ready or (sarvam and sarvam.ready)):
+            raise ToolError("Scheduled calls need Exotel (or Sarvam) set up.")
         try:
             due = parse_when(when)
             await asyncio.to_thread(

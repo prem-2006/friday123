@@ -1,6 +1,6 @@
 /* Friday: the main page, in the light console look of the ARRC "J" kit:
    a pale blue grid, cyan accents and monospace labels. */
-/* theme: fixed .friday-home */
+/* FRIDAY: no longer fixed; the dark Aqua Nebula look is derived like the rest. */
 .friday-home {
   --bg: #f4f7fb;
   --panel: rgba(255, 255, 255, 0.88);
@@ -663,9 +663,14 @@
   font-size: 13px;
   cursor: pointer;
 }
-.friday-home button:hover:not(:disabled) {
+.friday-home button:not(.primary, .add button):hover:not(:disabled) {
   border-color: var(--cyan) !important;
   color: var(--cyan) !important;
+}
+/* A filled button keeps its text colour on hover (cyan on cyan hid it). */
+.friday-home button.primary:hover:not(:disabled),
+.friday-home .add button:hover:not(:disabled) {
+  filter: brightness(1.12);
 }
 .friday-home button.primary,
 .friday-home .add button {
@@ -701,6 +706,81 @@
   font: 600 11px var(--mono);
   color: var(--muted);
   background: rgba(15, 76, 129, 0.06);
+}
+.home-apps {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+.home-apps li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.home-apps li > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.home-apps li > div .home-muted {
+  font-size: 12px;
+}
+.home-apps li > button,
+.home-apps li > .home-pill {
+  margin-left: auto;
+  flex: none;
+}
+.home-apps-browser .home-row {
+  align-items: center;
+  margin-top: 8px;
+}
+.home-apps-key {
+  margin-top: 10px;
+}
+.home-apps-key summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted);
+}
+.home-apps-key form,
+.home-apps-more form {
+  display: flex;
+  gap: 8px;
+}
+.home-apps-key form {
+  margin-top: 8px;
+}
+.home-apps-key input,
+.home-apps-more input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+.home-apps-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+}
+.home-apps-more form {
+  flex-basis: 100%;
+  margin-top: 4px;
+}
+.friday-home .home-apps-more > button {
+  padding: 4px 10px;
+  font-size: 12px;
 }
 .home-pill.signed-in {
   color: var(--green);

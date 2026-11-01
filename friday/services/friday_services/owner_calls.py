@@ -1,11 +1,10 @@
 """Friday phones its owner: for deadlines, and when asked ("call me at 5").
 
-With a voice agent set up the call goes through it: Sarvam (calls/sarvam.py,
-SARVAM_*) first, else Gnani's Inya (calls/inya.py, INYA_API_KEY). Either is an
-Indian call with no trial notice, where Friday says the reminder in its own
-words and keeps talking. Otherwise it uses the same
-Twilio + Gnani pipeline as Friday's calls to businesses (calls/bot.py), with
-the owner prompt. Calls are limited so a mistake can never ring the owner
+With Exotel set up (EXOTEL_*), Friday's own pipeline (calls/bot.py) makes
+the call from its Indian number, with the owner prompt and ask_friday, so
+the owner can get things done on the call. Otherwise a voice agent places
+it: Sarvam (calls/sarvam.py, SARVAM_*) first, else Gnani's Inya
+(calls/inya.py, INYA_API_KEY). Without either, the Twilio + Gnani pipeline. Calls are limited so a mistake can never ring the owner
 again and again.
 """
 
@@ -20,7 +19,7 @@ from typing import Any
 from friday_services.calls.inya import InyaDialer
 from friday_services.calls.prompts import gnani_owner_prompt
 from friday_services.calls.store import CallStore
-from friday_services.config import CALL_SETTINGS, REPO_ROOT, Settings
+from friday_services.config import REPO_ROOT, Settings
 
 MIN_GAP_SECONDS = 10 * 60  # at most one call every 10 minutes
 MAX_PER_DAY = 8
@@ -62,7 +61,10 @@ class OwnerCaller:
 
     @property
     def agent(self) -> Any:
-        """The voice agent that places calls to the owner, if one is set up."""
+        """The voice agent that places calls to the owner, if one is set up
+        and Friday's own Exotel pipeline is not."""
+        if self._settings.call_provider == "exotel" and self._settings.own_calls_ready:
+            return None
         for agent in (self._sarvam, self._gnani):
             if agent and agent.ready:
                 return agent
@@ -72,17 +74,21 @@ class OwnerCaller:
     def via(self) -> str:
         agent = self.agent
         if agent is None:
-            return "twilio"
+            return self._settings.call_provider
         return "sarvam" if agent is self._sarvam else "gnani"
 
     def missing(self) -> list[str]:
-        missing = [] if self.agent else self._settings.missing(CALL_SETTINGS)
+        missing = [] if self.agent else self._settings.missing(self._settings.call_settings)
         if not owner_phone(self._settings):
             missing.append("your phone number (Your details, or FRIDAY_OWNER_PHONE)")
         return missing
 
-    async def call(self, reason: str, urgent: bool = False, updates: str = "") -> dict[str, Any]:
-        """Rings the owner now. Returns what happened, never raises for limits."""
+    async def call(
+        self, reason: str, urgent: bool = False, updates: str = "", opening: str = ""
+    ) -> dict[str, Any]:
+        """Rings the owner now. opening: the exact first words ("Hi Prem, you
+        have a reminder: ..."); else the model says the reason nicely.
+        Returns what happened, never raises for limits."""
         missing = self.missing()
         if missing:
             return {"called": False, "why": "Phone calls are not set up: " + ", ".join(missing)}
@@ -95,16 +101,16 @@ class OwnerCaller:
         if self._store.active():
             return {"called": False, "why": "Another call is in progress."}
         if self.agent:
-            return await self._call_with_agent(reason, updates, now)
+            return await self._call_with_agent(reason, updates, now, opening)
         record = self._store.create(
             phone=owner_phone(self._settings) or "",
             goal=reason,
             language=self._settings.get("FRIDAY_CALL_LANGUAGE", "en-IN"),
-            context="",
+            context=updates,
             kind="owner",
         )
         try:
-            record.twilio_sid = await self._dialer.place(record)
+            record.call_sid = await self._dialer.place(record)
         except Exception as error:
             self._store.finish(record.id, "failed", error=str(error))
             return {"called": False, "why": f"The call could not be placed: {error}"}
@@ -112,10 +118,12 @@ class OwnerCaller:
         self._calls.append(now)
         return {"called": True, "call_id": record.id}
 
-    async def _call_with_agent(self, reason: str, updates: str, now: float) -> dict[str, Any]:
+    async def _call_with_agent(
+        self, reason: str, updates: str, now: float, opening: str = ""
+    ) -> dict[str, Any]:
         agent = self.agent
         note = reason + (f"\nThe updates:\n{updates}" if updates else "")
-        greeting = await (self._gnani or InyaDialer(self._settings)).greeting(note)
+        greeting = opening or await (self._gnani or InyaDialer(self._settings)).greeting(note)
         prompt = gnani_owner_prompt(
             self._settings.owner_name, greeting, reason, updates, self._settings.timezone
         )

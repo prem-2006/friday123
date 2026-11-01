@@ -249,3 +249,18 @@ async def test_through_ngrok_only_the_call_routes_answer(phone_app):
     client, _ = phone_app
     assert (await client.get("/health", headers=THROUGH_NGROK)).status_code == 404
     assert (await client.get("/health")).status_code == 200
+
+
+async def test_the_phone_token_is_accepted_however_the_agent_sends_it(phone_app):
+    client, _desk = phone_app
+    body = {"caller": OWNER, "request": "battery?"}
+    for headers, params in (
+        ({"Authorization": PHONE_TOKEN}, {}),
+        ({"Authorization": f"Token {PHONE_TOKEN}"}, {}),
+        ({"x-api-key": PHONE_TOKEN}, {}),
+        ({}, {"token": PHONE_TOKEN}),
+    ):
+        response = await client.post("/phone/ask", headers=headers, params=params, json=body)
+        assert response.status_code == 200, headers or params
+    for headers in ({}, {"Authorization": "Bearer nope"}, {"x-api-key": "nope"}):
+        assert (await client.post("/phone/ask", headers=headers, json=body)).status_code == 401

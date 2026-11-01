@@ -166,3 +166,61 @@ def test_routine_disconnects_are_not_shown_but_real_problems_are():
         ("speaking", False, None),
         ("error", None, "Gnani: invalid API key"),
     ]
+
+
+async def test_timbre_requests_take_turns_across_voice_windows():
+    import asyncio
+
+    from friday_services.live_voice import one_at_a_time
+
+    active, most = 0, 0
+
+    class FakeTTS:
+        async def run_tts(self, text, context_id):
+            nonlocal active, most
+            active += 1
+            most = max(most, active)
+            await asyncio.sleep(0.02)
+            yield text
+            active -= 1
+
+    tts = one_at_a_time(FakeTTS)
+
+    async def say(text):
+        return [frame async for frame in tts().run_tts(text, "c")]
+
+    said = await asyncio.gather(say("one"), say("two"), say("three"))
+    assert said == [["one"], ["two"], ["three"]] and most == 1
+
+
+async def test_a_hey_friday_hold_starts_with_the_words_said_just_before():
+    from pipecat.frames.frames import InputAudioRawFrame
+    from pipecat.processors.frame_processor import FrameDirection
+
+    from friday_services.live_voice import AudioGate
+
+    gate = AudioGate()
+    passed: list[bytes] = []
+
+    async def push(frame, _direction):
+        passed.append(frame.audio)
+
+    gate.push_frame = push
+    for n in range(3):  # 3 x 0.2 s before listening began ("play mu-")
+        await gate.process_frame(
+            InputAudioRawFrame(audio=bytes([n + 1]) * 6400, sample_rate=16000, num_channels=1),
+            FrameDirection.DOWNSTREAM,
+        )
+    assert passed == []
+    gate.preroll_next()
+    gate.push_to_talk(True)
+    now = InputAudioRawFrame(audio=bytes([9]) * 6400, sample_rate=16000, num_channels=1)
+    await gate.process_frame(now, FrameDirection.DOWNSTREAM)
+    assert [chunk[0] for chunk in passed] == [1, 2, 3, 9]
+    # A Caps Lock hold gets no replay.
+    passed.clear()
+    gate.push_to_talk(False)
+    gate._tail_left = 0
+    gate.push_to_talk(True)
+    await gate.process_frame(now, FrameDirection.DOWNSTREAM)
+    assert [chunk[0] for chunk in passed] == [9]
