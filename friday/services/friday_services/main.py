@@ -191,6 +191,11 @@ def create_app(
                         settings.get("FRIDAY_APP_URL", "http://127.0.0.1:4310"),
                         settings.get("OWNER_TOKEN", ""),
                     ),
+                    composio_latest=composio_reader(
+                        settings.get("FRIDAY_APP_URL", "http://127.0.0.1:4310"),
+                        settings.get("OWNER_TOKEN", ""),
+                        which="latest",
+                    ),
                 )
                 if owner_media is not None
                 else None

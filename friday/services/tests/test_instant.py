@@ -66,7 +66,7 @@ def test_simple_asks_run_without_the_model(friday):
         "args": {"query": "arijit singh"},
     }
     assert ask(friday, "volume 40")["calls"][0]["args"] == {"level": 40}
-    assert ask(friday, "pause")["calls"][0]["args"] == {"action": "pause"}
+    assert ask(friday, "pause")["calls"][0]["args"] == {"action": "pause", "in_front": True}
 
 
 def test_window_moves_across_screens(friday):
@@ -207,6 +207,10 @@ def test_email_summaries_always_go_to_the_background_summary(friday):
     ):
         assert ask(friday, text)["calls"] == [{"tool": "gmail_summary", "args": args}], text
     assert ask(friday, "any new email")["calls"] == [{"tool": "gmail_new", "args": {}}]
+    for text in ("latest gmail", "my top email", "first mail", "summarise the latest mail"):
+        assert ask(friday, text)["calls"] == [
+            {"tool": "gmail_summary", "args": {"which": 1, "about": "", "hinglish": False}}
+        ], text
     assert ask(friday, "reply to the mail from ravi") is None  # the Mail helper drafts it
 
 
@@ -239,7 +243,9 @@ def test_every_instant_answer_shows_on_the_task_toast(server):
         return feed["events"] if isinstance(feed, dict) else feed
 
     before = len(events())
-    done = httpx.post(f"{server.url}/instant", json={"text": "what time is it"}, headers=AUTH).json()
+    done = httpx.post(
+        f"{server.url}/instant", json={"text": "what time is it"}, headers=AUTH
+    ).json()
     assert done["handled"]
     new = events()[before:]
     assert [(e["action"], e["state"]) for e in new] == [("instant", "done")]
@@ -288,6 +294,14 @@ def test_youtube_player_asks_go_to_youtube(friday):
     for said, action in [
         ("full screen", "fullscreen"),
         ("video ko full screen karo", "fullscreen"),
+        ("video ko full screen kr de", "fullscreen"),
+        ("isko full screen kr do", "fullscreen"),
+        ("full screen krdo", "fullscreen"),
+        ("full screen band kr de", "exit_fullscreen"),
+        ("video ko pause kr de", "pause"),
+        ("video mute kr do", "mute"),
+        ("mute kr de", "mute"),
+        ("skip", "next"),
         ("exit full screen", "exit_fullscreen"),
         ("full screen band karo", "exit_fullscreen"),
         ("captions on", "captions"),
@@ -303,8 +317,9 @@ def test_youtube_player_asks_go_to_youtube(friday):
     # Without "video" or "YouTube": only while YouTube is in front.
     assert ask(friday, "full screen")["calls"][0]["args"]["in_front"] is True
     assert ask(friday, "video full screen")["calls"][0]["args"]["in_front"] is False
-    # Someone else's: the PC's volume, a window move, the next song.
-    for said in ["mute", "full screen chrome", "next song", "maximize notepad"]:
+    assert ask(friday, "mute")["calls"][0]["args"]["in_front"] is True
+    # Someone else's: a window move, the next song.
+    for said in ["full screen chrome", "next song", "maximize notepad"]:
         done = ask(friday, said)
         assert not done or done["calls"][0]["tool"] != "youtube_control", said
 
@@ -321,6 +336,26 @@ def test_full_screen_off_youtube_is_not_a_video_ask(tmp_path):
     instant = Instant(tmp_path / "s.json", lambda: APPS, run)
     assert asyncio.run(instant.handle("full screen")) is None  # the model decides
     assert ran == ["youtube_control"]
+    ran.clear()
+    # YouTube is not in front: "mute" is the PC's volume, not the video.
+    asyncio.run(instant.handle("mute"))
+    assert ran[0] == "youtube_control" and "youtube_control" not in ran[1:]
+
+
+def test_a_bad_shortcut_cannot_hijack_mail_or_a_yes(friday):
+    bad = [{"tool": "open_website", "args": {"url": "https://mail.google.com"}}]
+    assert friday.learn("haan ji", bad, "Opened https://mail.google.com.") is None
+    assert friday.learn("summarise the latest mail", bad, "Opened it.") is None
+    # One saved by an older Friday: the mail rule still comes first.
+    friday._save(
+        {"summarise the latest mail": {"calls": bad, "reply": "Opened.", "at": "2099-01-01"}}
+    )
+    assert ask(friday, "summarise the latest mail")["calls"][0]["tool"] == "gmail_summary"
+    # A shortcut the owner named keeps its place, and says the site's name.
+    assert friday.learn("when I say check mail, open Gmail", bad, "Opened https://mail.google.com.")
+    done = ask(friday, "check mail")
+    assert done["calls"][0]["tool"] == "open_website"
+    assert done["say"] == "Opened Gmail."
 
 
 def test_a_number_on_the_page_plays_that_video_there(friday):

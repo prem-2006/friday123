@@ -47,6 +47,7 @@ from friday_services.organizer import (
     weather,
 )
 from friday_services.screen import POSITIONS, Position, Screen, ScreenError
+from friday_services.sites import site_name
 from friday_services.volume import Volume, VolumeError, volume_sentence
 from friday_services.watch import Until, Watches
 from friday_services.worker import Worker
@@ -125,32 +126,6 @@ _TITLE_CUTS = re.compile(r"\s+[|•·–—-]\s+|\s*[(\[]|\s+(?:ft\.?|feat\.?|of
 
 
 # What Friday calls a site out loud: the name, never the address.
-SITE_NAMES = {
-    "mail.google.com": "Gmail",
-    "gmail.com": "Gmail",
-    "calendar.google.com": "Google Calendar",
-    "drive.google.com": "Google Drive",
-    "docs.google.com": "Google Docs",
-    "sheets.google.com": "Google Sheets",
-    "maps.google.com": "Google Maps",
-    "google.com": "Google",
-    "youtube.com": "YouTube",
-    "music.youtube.com": "YouTube Music",
-    "web.whatsapp.com": "WhatsApp",
-    "instagram.com": "Instagram",
-    "facebook.com": "Facebook",
-    "linkedin.com": "LinkedIn",
-    "github.com": "GitHub",
-    "chatgpt.com": "ChatGPT",
-    "claude.ai": "Claude",
-    "irctc.co.in": "IRCTC",
-    "amazon.in": "Amazon",
-    "flipkart.com": "Flipkart",
-    "netflix.com": "Netflix",
-    "spotify.com": "Spotify",
-}
-
-
 def youtube_query(title: str) -> str:
     """A YouTube window's title -> the search its results page shows:
     "(2) lofi - YouTube - Google Chrome" -> "lofi"; "" for the home page."""
@@ -158,28 +133,6 @@ def youtube_query(title: str) -> str:
     shown = re.sub(r"^\(\d+\)\s*", "", shown)
     shown = re.split(r"\s+-\s+YouTube\b", shown, maxsplit=1, flags=re.I)[0].strip()
     return "" if shown.casefold() == "youtube" else shown
-
-
-def site_name(url: str) -> str:
-    """ "https://mail.google.com/mail/u/0" -> "Gmail"; "irctc.co.in" -> "IRCTC"."""
-    from urllib.parse import urlparse
-
-    host = urlparse(url if "://" in url else f"https://{url}").hostname or url
-    host = host.lower().removeprefix("www.").removeprefix("m.")
-    if host in SITE_NAMES:
-        return SITE_NAMES[host]
-    parts = host.split(".")
-    for i in range(len(parts) - 1):  # "in.linkedin.com" -> "linkedin.com"
-        if ".".join(parts[i:]) in SITE_NAMES:
-            return SITE_NAMES[".".join(parts[i:])]
-    main = (
-        parts[-3]
-        if len(parts) >= 3 and parts[-2] in ("co", "com", "org", "gov", "ac")
-        else parts[0]
-        if len(parts) < 2
-        else parts[-2]
-    )
-    return main.upper() if len(main) <= 4 else main.capitalize()
 
 
 def video_name(title: str, words: int = 4) -> str:
@@ -262,7 +215,10 @@ def build_quick_server(
             lambda: desktop_worker.run(desktop.open, name),
         )
         if opened.get("already_open"):
-            return {**opened, "friday_say": f"{opened['opened']} was already open; it is in front now."}
+            return {
+                **opened,
+                "friday_say": f"{opened['opened']} was already open; it is in front now.",
+            }
         return {**opened, "friday_say": f"{opened['opened']} is open."}
 
     @server.tool(
@@ -321,7 +277,7 @@ def build_quick_server(
         name="press_keys_in_app",
         description=(
             "Press keys in an app's window: Ctrl+S to save, Ctrl+Z to undo, Ctrl+Y to redo, "
-            "Enter, Escape, Ctrl+N for new and so on."
+            "Enter, Escape, Ctrl+N for new and so on. Never for YouTube: use youtube_control."
         ),
         annotations=ACT,
     )
@@ -1254,8 +1210,8 @@ def build_quick_server(
             description=(
                 "Summarise the owner's Gmail, in the background (nothing opens on screen): "
                 "'summarise my Gmail', 'summary of my emails', 'what do my new mails say', "
-                "'read my latest email' (which 1), 'the mail from Ravi' (about 'ravi'). "
-                "which 0 = the newest unread emails together. Use this for every email "
+                "'read my latest email' (which 1 = the top of the inbox, read or unread), "
+                "'the mail from Ravi' (about 'ravi'). which 0 = the newest unread emails together. Use this for every email "
                 "summary; never open Gmail or hand summaries to a helper. hinglish: true "
                 "when the owner spoke Hindi or Hinglish."
             ),
@@ -1299,8 +1255,9 @@ def build_quick_server(
         @server.tool(
             name="gmail_read",
             description=(
-                "Read one unread email in full, in the background, so you can summarise it or "
-                "answer about it: 'summarise my latest email' (which 1), 'the second one' "
+                "Read one email in full, in the background, so you can summarise it or "
+                "answer about it: 'summarise my latest email' (which 1 = the top of the inbox, "
+                "read or unread), 'the second one' "
                 "(which 2), 'the mail from Ravi' (about 'ravi'). Then answer in two or three "
                 "spoken sentences: who, what they want, any date or amount. For drafts, "
                 "searches of older mail or what is pending, use the Mail helper."

@@ -12,6 +12,7 @@ from pydantic import Field
 from friday_services.activity import ActivityFeed
 from friday_services.browser import BrowserError, OnScreenBrowser
 from friday_services.browser_agent import BrowserAgent, BrowserAgentError
+from friday_services.sites import site_name
 from friday_services.worker import Worker
 
 ACT = ToolAnnotations(read_only_hint=False, destructive_hint=False)
@@ -64,7 +65,7 @@ def build_browser_server(
     async def browser_open(
         url: Annotated[str, Field(description="Web address, e.g. google.com")],
     ) -> dict:
-        return await act("browser_open", f"Opening {url}.", browser.open, url)
+        return await act("browser_open", f"Opening {site_name(url)}.", browser.open, url)
 
     @server.tool(
         name="browser_search",

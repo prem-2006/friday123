@@ -288,6 +288,14 @@ def test_status_answers_only_what_was_asked():
 
 def test_sites_are_called_by_name_never_by_address():
     from friday_services.mcp_quick import site_name
+    from friday_services.sites import name_urls
+
+    assert name_urls("Opened https://mail.google.com.") == "Opened Gmail."
+    assert name_urls("Opening mail.google.com/mail/u/0 now") == "Opening Gmail now"
+    assert (
+        name_urls("Ask ravi@example.com about report.pdf")
+        == "Ask ravi@example.com about report.pdf"
+    )
 
     assert site_name("https://mail.google.com/mail/u/0") == "Gmail"
     assert site_name("https://www.youtube.com/watch?v=abc") == "YouTube"

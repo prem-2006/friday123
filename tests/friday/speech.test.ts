@@ -8,7 +8,22 @@ it('strips markdown so Timbre reads only the words', () => {
     speakableText(
       '## Done\n\n- **Dentist:** Smile Clinic ([map](https://maps.example/x))\n- Time: `6 PM`\n\nSource: https://example.com/a',
     ),
-  ).toBe('Done. Dentist: Smile Clinic (map). Time: 6 PM. Source:');
+  ).toBe('Done. Dentist: Smile Clinic (map). Time: 6 PM. Source: Example');
+});
+
+it('says a site name, never the whole address', () => {
+  expect(speakableText('Opened https://mail.google.com.')).toBe(
+    'Opened Gmail.',
+  );
+  expect(speakableText('Opening mail.google.com/mail/u/0 now')).toBe(
+    'Opening Gmail now',
+  );
+  expect(speakableText('Opened https://www.example.co.in/a?b=c, done')).toBe(
+    'Opened Example, done',
+  );
+  expect(speakableText('Mail ravi@example.com the report.pdf')).toBe(
+    'Mail ravi@example.com the report.pdf',
+  );
 });
 
 it('stops long replies at a sentence boundary', () => {

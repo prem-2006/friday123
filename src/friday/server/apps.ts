@@ -147,12 +147,24 @@ export interface AppsDeps {
   signIn: (apiKey: string, userId: string, toolkit: string) => Promise<string>;
   /** The owner's unread inbox mail, newest first, read through Composio. */
   unreadMail: (apiKey: string, userId: string) => Promise<UnreadMail>;
+  /** The top of the owner's inbox as Gmail shows it (Primary, read or unread). */
+  latestMail: (apiKey: string, userId: string) => Promise<UnreadMail>;
   /** Where the key is kept (.env) and the owner's added apps. */
   envPath?: string;
   addedPath?: string;
 }
 
 const composio = (apiKey: string) => new Composio({ apiKey });
+async function fetchMail(apiKey: string, userId: string, query: string) {
+  const result = await composio(apiKey).tools.execute('GMAIL_FETCH_EMAILS', {
+    userId,
+    arguments: { query, max_results: 10, verbose: true },
+    dangerouslySkipVersionCheck: true,
+  });
+  if (!result.successful)
+    throw new Error(result.error ?? 'Gmail did not answer through Composio.');
+  return unreadFromComposio(result.data);
+}
 export const composioApps: AppsDeps = {
   async connected(apiKey, userId) {
     const accounts = await composio(apiKey).connectedAccounts.list({
@@ -179,20 +191,10 @@ export const composioApps: AppsDeps = {
     if (!request.redirectUrl) throw new Error('Composio gave no sign-in link.');
     return request.redirectUrl;
   },
-  async unreadMail(apiKey, userId) {
-    const result = await composio(apiKey).tools.execute('GMAIL_FETCH_EMAILS', {
-      userId,
-      arguments: {
-        query: 'is:unread in:inbox',
-        max_results: 10,
-        verbose: true,
-      },
-      dangerouslySkipVersionCheck: true,
-    });
-    if (!result.successful)
-      throw new Error(result.error ?? 'Gmail did not answer through Composio.');
-    return unreadFromComposio(result.data);
-  },
+  unreadMail: (apiKey, userId) =>
+    fetchMail(apiKey, userId, 'is:unread in:inbox'),
+  latestMail: (apiKey, userId) =>
+    fetchMail(apiKey, userId, 'in:inbox category:primary'),
 };
 
 /** Sets one KEY=value line in a .env file, keeping everything else. */
@@ -313,20 +315,31 @@ export function fridayAppsRoutes(
   // Friday's mail helper reads the inbox here when Gmail is connected through
   // Composio (read only; nothing opens on screen). connected: false sends it
   // back to Friday's Chrome.
-  app.get('/friday/apps/gmail/unread', async (c) => {
-    const apiKey = platform.config.composioApiKey;
-    if (!apiKey) return c.json({ connected: false });
-    try {
-      const connected = await deps.connected(apiKey, platform.workspace.ownerId);
-      if (!connected.includes('gmail')) return c.json({ connected: false });
-      return c.json({
-        connected: true,
-        ...(await deps.unreadMail(apiKey, platform.workspace.ownerId)),
-      });
-    } catch (e) {
-      return c.json({ error: e instanceof Error ? e.message : String(e) }, 502);
-    }
-  });
+  for (const [which, read] of [
+    ['unread', deps.unreadMail],
+    ['latest', deps.latestMail],
+  ] as const) {
+    app.get(`/friday/apps/gmail/${which}`, async (c) => {
+      const apiKey = platform.config.composioApiKey;
+      if (!apiKey) return c.json({ connected: false });
+      try {
+        const connected = await deps.connected(
+          apiKey,
+          platform.workspace.ownerId,
+        );
+        if (!connected.includes('gmail')) return c.json({ connected: false });
+        return c.json({
+          connected: true,
+          ...(await read(apiKey, platform.workspace.ownerId)),
+        });
+      } catch (e) {
+        return c.json(
+          { error: e instanceof Error ? e.message : String(e) },
+          502,
+        );
+      }
+    });
+  }
 
   // Another app, from the suggestions or by its Composio name.
   app.post('/friday/apps/add', async (c) => {

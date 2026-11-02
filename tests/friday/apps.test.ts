@@ -42,6 +42,7 @@ it('lists the apps, and says a Composio key is needed first', async () => {
     connected: vi.fn(),
     signIn: vi.fn(),
     unreadMail: vi.fn(),
+    latestMail: vi.fn(),
   });
   const state = await (await app.request('/friday/apps')).json();
   expect(state.composio).toBe(false);
@@ -64,6 +65,7 @@ it('connecting an app gives Google’s sign-in link and turns it on for Friday',
     connected,
     signIn,
     unreadMail: vi.fn(),
+    latestMail: vi.fn(),
   });
   const done = await (
     await app.request('/friday/apps/gmail/connect', { method: 'POST' })
@@ -97,6 +99,7 @@ it('saves a Composio key that works, and adds and removes more apps', async () =
     connected,
     signIn: vi.fn(),
     unreadMail: vi.fn(),
+    latestMail: vi.fn(),
     envPath,
     addedPath: join(folder, 'apps.json'),
   });
@@ -151,6 +154,7 @@ it('reads unread mail through Composio only when Gmail is connected there', asyn
     connected: vi.fn(async () => linked),
     signIn: vi.fn(),
     unreadMail,
+    latestMail: vi.fn(),
   });
   const unread = async () =>
     (await app.request('/friday/apps/gmail/unread')).json();

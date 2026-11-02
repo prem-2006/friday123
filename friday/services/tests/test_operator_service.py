@@ -64,7 +64,7 @@ def test_actions_show_up_live_with_a_screenshot(server):
         ("navigator", "running"),
         ("navigator", "done"),
     ]
-    assert received[0]["detail"] == "Opening example.test."
+    assert received[0]["detail"] == "Opening Example."
     assert received[1]["image"] == "aW1hZ2U="
 
 

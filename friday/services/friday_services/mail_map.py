@@ -98,11 +98,13 @@ class MailMap:
         path: Path,
         clock: Callable[[], float] = time.time,
         composio: Composio | None = None,
+        composio_latest: Composio | None = None,
     ):
         self._fetch = fetch
         self.path = path
         self._clock = clock
         self._composio = composio
+        self._composio_latest = composio_latest
         self._texts: dict[str, str] = {}  # full text Composio already gave
 
     def _load(self) -> dict:
@@ -115,16 +117,20 @@ class MailMap:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_text(json.dumps(data, indent=1, ensure_ascii=False), encoding="utf-8")
 
-    def _from_composio(self) -> tuple[int, list[Mail]] | None:
-        """Unread mail through Composio; None when Gmail is not connected there."""
-        if self._composio is None:
+    def _from_composio(self, read: Composio | None = None) -> tuple[int, list[Mail]] | None:
+        """Mail through Composio (unread unless told otherwise); None when Gmail
+        is not connected there."""
+        read = read or self._composio
+        if read is None:
             return None
-        answer = self._composio()
+        answer = read()
         if not answer.get("connected"):
             return None
         mails = []
         for item in answer.get("mails") or []:
-            mail = Mail(**{field: str(item.get(field) or "") for field in Mail.__dataclass_fields__})
+            mail = Mail(
+                **{field: str(item.get(field) or "") for field in Mail.__dataclass_fields__}
+            )
             mail.preview = html.unescape(mail.preview)
             if item.get("text"):
                 self._texts[mail.id] = str(item["text"])
@@ -164,21 +170,30 @@ class MailMap:
         self._save(data)
         return count, mails, fresh
 
+    def inbox(self) -> list[Mail] | None:
+        """The inbox from the top, as Gmail shows it (Primary, read or unread);
+        None when only the unread feed can be read."""
+        found = self._from_composio(self._composio_latest) if self._composio_latest else None
+        return found[1] if found else None
+
     def find(self, which: int = 1, about: str = "") -> Mail:
-        """The Nth newest unread mail (1 = latest), or the newest whose sender
-        or subject mentions `about`."""
-        _count, mails = self.refresh()
-        if not mails:
-            raise MailError("You have no unread mail.")
+        """The Nth mail from the top of the inbox (1 = latest), or the newest
+        whose sender or subject mentions `about`."""
         if about.strip():
             words = about.casefold().split()
-            for mail in mails:
+            _count, unread = self.refresh()
+            for mail in unread + (self.inbox() or []):
                 haystack = f"{mail.sender} {mail.email} {mail.subject}".casefold()
                 if all(word in haystack for word in words):
                     return mail
-            raise MailError(f'No unread mail about "{about}".')
+            raise MailError(f'No recent mail about "{about}".')
+        mails = self.inbox()
+        if mails is None:
+            _count, mails = self.refresh()
+        if not mails:
+            raise MailError("Your inbox has no mail to read.")
         if not 1 <= which <= len(mails):
-            raise MailError(f"There are only {len(mails)} unread emails.")
+            raise MailError(f"There are only {len(mails)} recent emails.")
         return mails[which - 1]
 
     def full_text(self, mail: Mail) -> str:
@@ -196,17 +211,19 @@ class MailMap:
         return text
 
 
-def composio_reader(app_url: str, token: str = "", timeout: float = 45) -> Composio:
-    """Asks Friday's app server for the unread mail Composio sees. If the app
-    server is down or Composio fails, answers "not connected", so the mail is
-    read through Friday's Chrome instead."""
+def composio_reader(
+    app_url: str, token: str = "", timeout: float = 45, which: str = "unread"
+) -> Composio:
+    """Asks Friday's app server for the mail Composio sees (unread, or latest:
+    the top of the inbox). If the app server is down or Composio fails, answers
+    "not connected", so the mail is read through Friday's Chrome instead."""
     import httpx
 
     def read() -> dict:
         headers = {"Authorization": f"Bearer {token}"} if token else {}
         try:
             response = httpx.get(
-                f"{app_url.rstrip('/')}/api/friday/apps/gmail/unread",
+                f"{app_url.rstrip('/')}/api/friday/apps/gmail/{which}",
                 headers=headers,
                 timeout=timeout,
             )

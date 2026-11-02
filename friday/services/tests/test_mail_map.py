@@ -111,6 +111,46 @@ def test_reads_through_composio_when_gmail_is_connected_there(tmp_path):
     assert [m.id for m in mails.new()[2]] == ["c1"]
 
 
+def composio_answer(*mails):
+    return lambda: {
+        "connected": True,
+        "count": len(mails),
+        "mails": [
+            {"id": m, "sender": m, "subject": f"{m} subject", "text": f"{m} text"} for m in mails
+        ],
+    }
+
+
+def test_latest_is_the_top_of_the_inbox_even_when_it_is_already_read(tmp_path):
+    mails = MailMap(
+        gmail(),
+        tmp_path / "map.json",
+        composio=composio_answer("McAfee promotion", "Eatclub"),
+        composio_latest=composio_answer("Google Tips", "Eatclub"),
+    )
+    top = mails.find(1)
+    assert top.sender == "Google Tips"
+    assert mails.full_text(top) == "Google Tips text"
+    assert mails.find(2).sender == "Eatclub"
+    # "New mail" still means unread.
+    assert [m.sender for m in mails.refresh()[1]] == ["McAfee promotion", "Eatclub"]
+    # A sender is searched in the unread mail and the inbox.
+    assert mails.find(1, "google tips").sender == "Google Tips"
+    with pytest.raises(MailError, match="No recent mail"):
+        mails.find(1, "nobody")
+
+
+def test_latest_falls_back_to_unread_when_composio_has_no_gmail(tmp_path):
+    fetch = gmail()
+    mails = MailMap(
+        fetch,
+        tmp_path / "map.json",
+        composio=lambda: {"connected": False},
+        composio_latest=lambda: {"connected": False},
+    )
+    assert mails.find(1).subject == "Project plan"
+
+
 def test_falls_back_to_chrome_when_composio_has_no_gmail(tmp_path):
     fetch = gmail()
     mails = MailMap(fetch, tmp_path / "map.json", composio=lambda: {"connected": False})

@@ -29,6 +29,8 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
+from friday_services.sites import SITE_NAMES, name_urls, site_name
+
 # Tools whose calls can be replayed later with no model. Nothing here sends,
 # pays, calls someone or saves something said at that moment.
 REPLAYABLE = {
@@ -54,6 +56,12 @@ NAMED = re.compile(
     re.I,
 )
 MORE = re.compile(r"\b(and|then|after that|also|aur|phir)\b", re.I)
+# A bare yes or no answers the question just asked: its tool calls are no shortcut.
+ANSWER = re.compile(
+    r"(?:(?:haan|han|ha|ji|yes|yeah|yep|ok|okay|sure|no|nope|nahi|na|theek hai|thik hai|go ahead|"
+    r"do it|kar do|please)\b ?)+"
+)
+MAIL_ASK = re.compile(r"\b(e?-?mails?|gmails?|inbox)\b")
 FAILED = re.compile(
     r"\b(can't|cannot|couldn't|could not|unable|not able|failed|not done|didn't work|did not work|"
     r"no app called|no open window|sorry)\b",
@@ -135,13 +143,14 @@ YOUTUBE_FILLER = YOUTUBE_NAMES | {
     "please", "friday", "the", "it", "this", "is", "ko", "ka", "ki", "ke", "karo", "kar",
     "do", "kardo", "de", "dena", "mode", "me", "mein", "main", "par", "pe", "make", "go",
     "put", "ise", "isko", "iss", "ab", "zara", "turn", "switch", "in", "into", "to", "jao",
-    "ho", "on", "chalu",
+    "ho", "on", "chalu", "kr", "kro", "krdo", "krde", "karde", "kardena", "krna", "karna",
+    "kijiye", "kariye", "dijiye", "na", "ye", "yeh",
 }  # fmt: skip
 YOUTUBE_ASKS = [
     (r"(?:exit|leave|band|off|hatao|close|escape)(?: (?:from|se|of))? full ?screen"
      r"|full ?screen (?:band|off|hatao|exit|se bahar|se nikalo|close)|normal screen|escape",
      "exit_fullscreen"),
-    (r"full ?screen|full|bada", "fullscreen"),
+    (r"full ?screen|full|bada|(?:puri|poori|pura|poora|badi) screen", "fullscreen"),
     (r"theat(?:er|re)", "theater"),
     (r"(?:captions?|subtitles?|cc)(?: (?:off|band|hatao|dikhao|lagao))?", "captions"),
     (r"mute", "mute"),
@@ -150,10 +159,11 @@ YOUTUBE_ASKS = [
     (r"slower|slow|speed (?:down|kam)|dheere|dheema", "slower"),
     (r"next|agla|agli|skip", "next"),
     (r"previous|pichla|pichli|back", "previous"),
+    (r"pause|ruko|roko|rok", "pause"),
+    (r"resume", "play"),
+    (r"forward|aage(?: badhao)?", "forward"),
+    (r"rewind|peeche|piche", "rewind"),
 ]  # fmt: skip
-# Said without "video" or "YouTube", these are someone else's (the PC's
-# volume, the next song in Spotify).
-YOUTUBE_NEEDS_NAME = {"mute", "unmute", "next", "previous", "faster", "slower"}
 # "the second video": its place in the results on screen.
 ORDINALS = {
     "first": 1, "1st": 1, "top": 1, "pehla": 1, "pehli": 1, "pehle": 1,
@@ -170,7 +180,6 @@ RunTool = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
 
 def site_url(name: str) -> str | None:
     """A spoken site name -> its address: "youtube" -> "youtube.com"."""
-    from friday_services.mcp_quick import SITE_NAMES
 
     name = name.strip().removeprefix("the ")
     if re.fullmatch(r"[\w-]+(\.[\w-]+)+", name.replace(" dot ", ".")):
@@ -292,6 +301,8 @@ class Instant:
             or not calls
             or len(calls) > MAX_STEPS
             or DEICTIC.search(k)
+            or ANSWER.fullmatch(k)
+            or (MAIL_ASK.search(k) and not mine)  # the mail rule answers these, in the background
             or FAILED.search(reply or "")
             or any(c["tool"] not in REPLAYABLE for c in calls)
         ):
@@ -301,7 +312,7 @@ class Instant:
         new = before.get("calls") != calls
         skills[k] = {
             "calls": calls,
-            "reply": reply.strip() or "Done.",
+            "reply": name_urls(reply.strip()) or "Done.",
             "at": time.strftime("%Y-%m-%d"),
             **({"mine": True} if mine or before.get("mine") else {}),
         }
@@ -330,8 +341,10 @@ class Instant:
             lambda n: _key(n) == _key(w),
             lambda n: _key(n.split()[-1]) == _key(w),
             lambda n: _key(re.sub(r"\s*\(.*\)$", "", n)) == _key(w),
-            lambda n: n.lower().startswith(w + " ")
-            and not re.search(r"chrome|edge|firefox|brave|opera", n.lower()),
+            lambda n: (
+                n.lower().startswith(w + " ")
+                and not re.search(r"chrome|edge|firefox|brave|opera", n.lower())
+            ),
         ):
             hit = next((n for n in names if test(n)), None)
             if hit:
@@ -391,7 +404,7 @@ class Instant:
         if entry.get("used") != time.strftime("%Y-%m-%d"):  # used today: the 30-day clock restarts
             skills[k]["used"] = time.strftime("%Y-%m-%d")
             self._save(skills)
-        reply = entry["reply"]
+        reply = name_urls(entry["reply"])
         if swap:
             reply = reply.replace(swap[0], swap[1])
         return {"say": reply, "calls": done, "shortcut": k}
@@ -430,6 +443,11 @@ class Instant:
                 else "No shortcuts yet. Say: when I say focus mode, open Spotify.",
                 "calls": [],
             }
+
+        if MAIL_ASK.search(t) and not (self.skills().get(t) or {}).get("mine"):
+            done = await self._mail(t, text)  # before any shortcut, so no Gmail tab opens
+            if done:
+                return done
 
         if self._learning():
             skills, g = self.skills(), gist(t)
@@ -474,11 +492,11 @@ class Instant:
         if re.search(r"\b(reply|draft|send|bhejo|likho|compose|delete|archive)\b", t):
             return None  # writing mail: the Mail helper, with the owner's OK
         done: list = []
-        if re.search(r"\b(summar\w*|read|padh\w*|kya likha|bata\w*|what do|what does)\b", t):
+        one = re.search(
+            r"\b(latest|last|recent|newest|top|first|pehla|pehli|aakhri)\b", t
+        ) and not re.search(r"\b(e?mails|gmails|emails|any|koi)\b", t)
+        if one or re.search(r"\b(summar\w*|read|padh\w*|kya likha|bata\w*|what do|what does)\b", t):
             # A summary, always in the background (never a Gmail tab).
-            one = re.search(
-                r"\b(latest|last|recent|newest|top|pehla|aakhri)\b", t
-            ) and not re.search(r"\b(e?mails|gmails|emails)\b", t)
             sender = re.search(r"\bfrom ([a-z][\w .]{1,30}?)$", t)
             args = {
                 "which": 1 if one else 0,
@@ -512,19 +530,17 @@ class Instant:
         return {"say": result.get("friday_say") or "Done.", "calls": done}
 
     async def _youtube(self, t: str, _text: str):
-        """ "Full screen", "captions on", "video mute karo" while on YouTube:
+        """ "Full screen", "captions on", "video mute kr de" while on YouTube:
         YouTube's own keys in the YouTube app or tab. Without "video" or
-        "YouTube" in it, only while YouTube is in front ("full screen" on
-        anything else is a window move)."""
+        "YouTube" in it, only while YouTube is in front: on anything else
+        "full screen" is a window move and "mute" the PC's volume."""
         if MORE.search(t) or len(t.split()) > 8:
             return None
         words = t.split()
         named = any(w in YOUTUBE_NAMES for w in words)
         core = " ".join(w for w in words if w not in YOUTUBE_FILLER)
-        action = next(
-            (name for pattern, name in YOUTUBE_ASKS if re.fullmatch(pattern, core)), None
-        )
-        if not action or (action in YOUTUBE_NEEDS_NAME and not named):
+        action = next((name for pattern, name in YOUTUBE_ASKS if re.fullmatch(pattern, core)), None)
+        if not action:
             return None
         done: list = []
         result = await self._call(
@@ -668,7 +684,9 @@ class Instant:
         query = re.sub(r"^(koi |ek )?(gaana|song) ", "", query)
         # "lofi youtube pe chalao", "youtube pe lofi chalao": YouTube is where, not what.
         query = re.sub(r"^(?:youtube|yt) (?:pe|par|mein|me|main|se) ", "", query)
-        query = re.sub(r" (?:youtube|yt) (?:pe|par|mein|me|main|se)$| (?:on|in) (?:youtube|yt)$", "", query)
+        query = re.sub(
+            r" (?:youtube|yt) (?:pe|par|mein|me|main|se)$| (?:on|in) (?:youtube|yt)$", "", query
+        )
         if not query.strip():
             return None
         done: list = []
@@ -718,7 +736,7 @@ class Instant:
             site
         ):
             result = await self._call("open_website", {"url": site}, done)
-            return {"say": result.get("friday_say") or f"Opened {site}.", "calls": done}
+            return {"say": result.get("friday_say") or f"Opened {site_name(site)}.", "calls": done}
         app = self.app_named(target)
         if not app:
             return None
