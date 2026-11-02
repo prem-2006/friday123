@@ -11,6 +11,9 @@ from dataclasses import asdict, dataclass, field
 
 from mcp.server.mcpserver.exceptions import ToolError
 
+# How long a stop holds at most (see ActivityFeed.stopped).
+STOP_HOLDS = 15.0
+
 
 @dataclass
 class Activity:
@@ -39,7 +42,7 @@ class ActivityFeed:
         self._notches: set[asyncio.Queue[Activity]] = set()
         self._holder: asyncio.Queue[Activity] | None = None
         self._ids = itertools.count(1)
-        self.stopped = False
+        self._stopped_at: float | None = None
 
     def windows(self) -> dict[str, int]:
         """How many voice windows and notches are connected (for Caps Lock)."""
@@ -93,12 +96,21 @@ class ActivityFeed:
         if queue in self._voices:
             self._voices.remove(queue)
 
+    @property
+    def stopped(self) -> bool:
+        """A stop ends what is running; it never outlasts STOP_HOLDS seconds,
+        so a lost "resume" (the voice screen reloaded, the app restarted)
+        cannot leave Friday refusing everything."""
+        if self._stopped_at is not None and time.monotonic() - self._stopped_at > STOP_HOLDS:
+            self._stopped_at = None
+        return self._stopped_at is not None
+
     def stop(self) -> None:
-        self.stopped = True
+        self._stopped_at = time.monotonic()
         self.emit("friday", "stop", "You stopped all on-screen actions.", state="done")
 
     def resume(self) -> None:
-        self.stopped = False
+        self._stopped_at = None
         self.emit("friday", "resume", "On-screen actions are allowed again.", state="done")
 
     def guard(self) -> None:

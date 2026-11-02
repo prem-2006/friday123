@@ -29,6 +29,7 @@ import {
 } from './conversation';
 import { HandsFree } from './handsFree';
 import {
+  isCancelCommand,
   isQuietCommand,
   isSleepCommand,
   mentionsFriday,
@@ -42,6 +43,7 @@ import { LiveVoice, type LiveEvent } from './liveVoice';
 import { Notch, type NotchState } from './Notch';
 import { ACTOR_NAMES, narrate, type ActivityEvent } from './narration';
 import { Orb, type OrbMode } from './Orb';
+import { HoloScene } from '../home/HoloScene';
 import './stage.css';
 
 export const STAGE_HASH = '#/friday';
@@ -326,6 +328,9 @@ function OfflineNotch({ setUp }: { setUp: boolean }) {
   );
 }
 
+// A turn that shows no progress (no text, no step) for this long is stuck.
+const TURN_STALL_MS = 90_000;
+
 export function FridayStage({
   workspace,
   configured,
@@ -447,6 +452,19 @@ function StageSession({
   // When the owner last spoke to Friday (follow-ups need no "Friday" until
   // AWAKE_MS after it).
   const awakeAt = useRef(0);
+  // Told "stop": only "Hey Friday" (or Caps Lock) brings Friday back; the
+  // services ignore double claps meanwhile.
+  const stoppedRef = useRef(false);
+  const markStopped = (stopped: boolean) => {
+    if (stoppedRef.current === stopped) return;
+    stoppedRef.current = stopped;
+    void fetch('/api/friday/wake/stopped', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ stopped }),
+      signal: AbortSignal.timeout(3000),
+    }).catch(() => {});
+  };
   // The notch shows Friday asleep again once that time is up.
   useEffect(() => {
     if (!alwaysOn) return;
@@ -469,6 +487,9 @@ function StageSession({
   const runningRef = useRef(false);
   const replying = useRef(false); // speaking the answer to the last request
   const turnDone = useRef<Promise<void>>(Promise.resolve());
+  // When the running turn last showed progress (text, a step): a turn silent
+  // for TURN_STALL_MS is stuck, and is cancelled.
+  const progressAt = useRef(0);
   // Whether the turn being heard began while Friday was talking.
   const overFriday = useRef(false);
   // The live voice pipeline (friday/services over WebRTC). When it is not
@@ -492,6 +513,8 @@ function StageSession({
   // Counts the owner talking over Friday, so a reply's queued sentences stop.
   const talkedOver = useRef(0);
   const stopping = useRef(false);
+  // The stop sent to the services: a resume goes only after it has arrived.
+  const stopSent = useRef<Promise<void>>(Promise.resolve());
   const spokenApproval = useRef('');
   const languageRef = useRef(language);
   languageRef.current = language;
@@ -521,6 +544,8 @@ function StageSession({
   };
 
   useEffect(() => {
+    // A stop left on by an earlier page (it reloaded mid-stop) is lifted.
+    void setStopped(false);
     void voiceConfig()
       .then((config) => setVoiceReady(config.ready))
       .catch(() => setVoiceReady(false));
@@ -529,6 +554,7 @@ function StageSession({
         // Caps Lock and clap signals from friday/services, not helper activity.
         if (event.actor === 'control')
           return controlRef.current(event.action, event.detail);
+        progressAt.current = Date.now();
         setEvents((list) => [...list.slice(-40), event]);
       },
       setHelpersOnline,
@@ -718,6 +744,18 @@ function StageSession({
     setError('');
     const controller = new AbortController();
     turn.current = controller;
+    progressAt.current = Date.now();
+    const watchdog = setInterval(() => {
+      if (Date.now() - progressAt.current > TURN_STALL_MS) {
+        controller.abort();
+        setError('That got stuck, so I stopped it. Please say it again.');
+      }
+    }, 5000);
+    const cancelled = new Promise<void>((resolve) =>
+      controller.signal.addEventListener('abort', () => resolve(), {
+        once: true,
+      }),
+    );
     // The reply is spoken sentence by sentence while it is still being
     // written, one after another, never waiting for the whole text.
     let written = '';
@@ -741,6 +779,7 @@ function StageSession({
     try {
       const asked = performance.now();
       const result = await runFriday(history, controller.signal, (delta) => {
+        progressAt.current = Date.now();
         written += delta;
         setSubtitle(written);
         const [ready, rest] = readySentences(pending + delta);
@@ -763,11 +802,13 @@ function StageSession({
       // instant command) is said now.
       const norm = (text: string) => text.replace(/\s+/gu, ' ').trim();
       if (!norm(spokenText).includes(norm(reply))) say(reply);
-      await voiceQueue;
+      progressAt.current = Date.now();
+      await Promise.race([voiceQueue, cancelled]);
     } catch (e) {
       if (!controller.signal.aborted)
         setError(friendlyError(e, 'That did not work. Try again.'));
     } finally {
+      clearInterval(watchdog);
       replying.current = false;
       turn.current = null;
       runningRef.current = false;
@@ -775,6 +816,7 @@ function StageSession({
       finished();
       if (stopping.current) {
         stopping.current = false;
+        await stopSent.current;
         await setStopped(false);
       }
       setPhase((current) => (current === 'speaking' ? current : 'off'));
@@ -858,14 +900,32 @@ function StageSession({
     await runTurn(history);
   };
 
-  const stopEverything = async () => {
+  // Ends the running turn for sure: aborted at once (the server stops its
+  // run and the services their on-screen steps); if it still has not ended
+  // after a few seconds, it is let go of, so Friday never stays "busy".
+  const cancelRunning = async () => {
     stopSpeaking();
-    caption('friday', 'Stopping.');
-    if (running) {
-      stopping.current = true;
-      await setStopped(true);
-      turn.current?.abort();
+    if (!runningRef.current) return;
+    stopping.current = true;
+    stopSent.current = setStopped(true);
+    turn.current?.abort();
+    const ended = await Promise.race([
+      turnDone.current.then(() => true),
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 3000)),
+    ]);
+    if (!ended) {
+      replying.current = false;
+      turn.current = null;
+      runningRef.current = false;
+      setRunning(false);
+      stopping.current = false;
+      void stopSent.current.then(() => setStopped(false));
     }
+  };
+
+  const stopEverything = async () => {
+    caption('friday', 'Stopping.');
+    await cancelRunning();
   };
 
   const newConversation = () => {
@@ -927,6 +987,7 @@ function StageSession({
         if (!sleepCall) {
           quietRef.current = false;
           setQuiet(false);
+          markStopped(false);
           awakeAt.current = Date.now();
           if (!back.rest) {
             caption('you', text);
@@ -942,9 +1003,13 @@ function StageSession({
     if (text && isSleepCommand(text)) {
       quietRef.current = true;
       setQuiet(true);
+      markStopped(true);
       caption('you', text);
       await stopEverything();
       setPhase('off');
+      // Said aloud, so the owner knows without looking (not "Hey Friday":
+      // its own voice would wake it again).
+      await speak('Theek hai, main band ho gayi.', true);
       setSubtitle(
         'Stopped. Say “Hey Friday” or hold Caps Lock when you need me.',
       );
@@ -964,10 +1029,24 @@ function StageSession({
     } else if (held && quietRef.current) {
       quietRef.current = false;
       setQuiet(false);
+      markStopped(false);
     }
     if (!text) {
       if (!startedOverFriday) setPhase(runningRef.current ? 'thinking' : 'off');
       return;
+    }
+    // "Cancel all the task", "sab cancel karo", "chhodo": drop what is running
+    // (an approval waiting is declined), and keep listening.
+    if (isCancelCommand(text)) {
+      caption('you', text);
+      if (pendingApproval) return decide(false);
+      const busy = runningRef.current || fridayTalking();
+      await cancelRunning();
+      setPhase('off');
+      return speak(
+        busy ? 'Theek hai, cancel kar diya.' : 'Abhi koi kaam nahi chal raha.',
+        true,
+      );
     }
     const intent = intentOf(text);
     trace('heard', {
@@ -1004,8 +1083,9 @@ function StageSession({
       return speak('Please say yes or no first.', true);
     }
     if (runningRef.current) {
-      caption('you', text);
-      return speak('I am still on the last task. Say stop to cancel it.', true);
+      // A new request replaces the one still running (which may be stuck):
+      // Friday never answers "still busy".
+      await cancelRunning();
     }
     await send(text);
   };
@@ -1207,6 +1287,7 @@ function StageSession({
     } else if (action === 'wake' && detail) {
       quietRef.current = false;
       setQuiet(false);
+      markStopped(false);
       awakeAt.current = Date.now();
       // "Hey Friday" or a double clap: hello about what is on screen, then
       // friday/services starts listening once it has been said.
@@ -1377,6 +1458,7 @@ function StageSession({
   }
   return (
     <div className={`friday-stage mode-${mode}`}>
+      <HoloScene />
       <Orb
         mode={mode}
         level={level}

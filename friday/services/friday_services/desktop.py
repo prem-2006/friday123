@@ -210,6 +210,37 @@ class Control:
     wrapper: Any
 
 
+VIDEO_LINK = re.compile(r"\d+ (?:seconds?|minutes?|hours?)\W*$|^mix [-–]", re.I)
+VIDEO_LENGTH = re.compile(r"(?:^|\s+)\d+ (?:seconds?|minutes?|hours?)[\s,\w]*$")
+
+
+def shown_videos(links) -> list[tuple[Any, str]]:
+    """(link, title) of the videos among a page's links, in page order, each
+    once (a thumbnail and its title link are the same video)."""
+    seen: set[str] = set()
+    videos = []
+    for link, text in links:
+        text = " ".join(text.split())
+        if not VIDEO_LINK.search(text):
+            continue
+        name = VIDEO_LENGTH.sub("", text).strip()
+        if not name or name.casefold() in seen:
+            continue
+        seen.add(name.casefold())
+        videos.append((link, name))
+    return videos
+
+
+def pick_video(videos: list[tuple[Any, str]], n: int = 1, title: str = ""):
+    """The video called `title` (its start, or a part of it), else the nth."""
+    if title:
+        want = " ".join(title.casefold().split())
+        return next((v for v in videos if v[1].casefold().startswith(want[:40])), None) or next(
+            (v for v in videos if want[:40] in v[1].casefold()), None
+        )
+    return videos[n - 1] if 0 < n <= len(videos) else None
+
+
 class DesktopApps:
     """Use only from one COM thread (see worker.Worker)."""
 
@@ -414,20 +445,30 @@ class DesktopApps:
         return None
 
     def click_first_video(self, hwnd: int, wait_seconds: float = 6) -> str:
-        """Click the first video on the page (a link whose text ends with its
-        length, "… 4 hours, 20 minutes", or a mix); its title, or ""."""
+        """Click the first video on the page; its title, or ""."""
+        return self.click_shown_video(hwnd, 1, "", wait_seconds)
+
+    def click_shown_video(
+        self, hwnd: int, n: int = 1, title: str = "", wait_seconds: float = 6
+    ) -> str:
+        """Click a video on the page as it is (no new search): the nth one, or
+        the one whose title starts with `title`. Videos are the links whose text
+        ends with their length ("… 4 hours, 20 minutes") or mixes. Its title, or ""."""
         window = self._uia().window(handle=hwnd)
-        long = re.compile(r"\d+ (?:seconds?|minutes?|hours?)\W*$|^mix [-–]", re.I)
         deadline = time.time() + wait_seconds
         while time.time() < deadline:
-            for link in window.descendants(control_type="Hyperlink"):
-                text = (link.window_text() or "").strip()
-                if long.search(text):
-                    try:
-                        link.invoke()
-                    except Exception:
-                        link.click_input()
-                    return re.sub(r"\s+\d+ (?:seconds?|minutes?|hours?)[\s,\w]*$", "", text)
+            videos = shown_videos(
+                (link, link.window_text() or "")
+                for link in window.descendants(control_type="Hyperlink")
+            )
+            pick = pick_video(videos, n, title)
+            if pick:
+                link, name = pick
+                try:
+                    link.invoke()
+                except Exception:
+                    link.click_input()
+                return name
             time.sleep(0.5)
         return ""
 

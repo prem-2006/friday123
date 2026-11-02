@@ -4,12 +4,24 @@
 // ("suno Friday, ek kaam hai", "ab baat karte hain Friday"). Pure text rules,
 // so they can be tested.
 
+// How Gnani may write these words in Hindi mode, or mishear "hey Friday".
+const SPELLINGS: [RegExp, string][] = [
+  [/फ्राइडे|फ्रायडे|फ़्राइडे/gu, 'friday'],
+  [/स्टॉप|स्टाप/gu, 'stop'],
+  [/(^| )(हे|हाय)(?= friday)/gu, '$1hey'],
+  // Only first: "kal hai friday" is not a call.
+  [/^(a|ae|he|hai|hay|pay)(?= friday( |$))/u, 'hey'],
+];
+
 function normalise(text: string) {
-  return text
-    .toLowerCase()
-    .replace(/[.,!?।"'’]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return SPELLINGS.reduce(
+    (said, [pattern, word]) => said.replace(pattern, word),
+    text
+      .toLowerCase()
+      .replace(/[.,!?।"'’]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim(),
+  );
 }
 
 // "Be quiet for now" (not "cancel the task": that is still "stop").
@@ -102,6 +114,15 @@ const SLEEP = [
   'stop everything',
   'stop stop',
   'please stop',
+  'stopped',
+  'stop ho ja',
+  'stop ho jao',
+  'disable',
+  'off',
+  'turn off',
+  'switch off',
+  'band ho ja',
+  'band ho jao',
   'bas',
   'bas karo',
   'bas friday',
@@ -123,6 +144,16 @@ const SLEEP_FILLER = new Set([
   'abhi',
   'just',
   'bhai',
+  'arey',
+  'are',
+  'nahi',
+  'nahin',
+  'kuch',
+  'kuchh',
+  'toh',
+  'tum',
+  'you',
+  'bas',
 ]);
 const SLEEP_ALSO = ['go to sleep', 'sleep', 'so jao', 'stop it now'];
 
@@ -132,8 +163,12 @@ export function isSleepCommand(text: string): boolean {
   const said = normalise(text);
   if (SLEEP.includes(said)) return true;
   const words = said.split(' ');
-  if (words.length > 5) return false;
-  const core = words.filter((word) => !SLEEP_FILLER.has(word)).join(' ');
+  if (words.length > 8) return false;
+  const core = words
+    .filter((word) => !SLEEP_FILLER.has(word))
+    // "stop stop stop" is one stop.
+    .filter((word, i, kept) => word !== 'stop' || kept[i - 1] !== 'stop')
+    .join(' ');
   return !!core && (SLEEP.includes(core) || SLEEP_ALSO.includes(core));
 }
 
@@ -167,4 +202,72 @@ export function resumeRequest(text: string): { resume: boolean; rest: string } {
   let rest = said.slice(said.indexOf(phrase) + phrase.length).trim();
   for (let i = 0; i < 3; i++) rest = rest.replace(LEAD_IN, '').trim();
   return { resume: true, rest: rest.split(' ').length >= 2 ? rest : '' };
+}
+
+// Said around a cancel without changing what is cancelled: "cancel all the
+// tasks", "sab kaam cancel karo", "Friday, leave it".
+const CANCEL_FILLER = new Set([
+  'all',
+  'the',
+  'a',
+  'my',
+  'your',
+  'this',
+  'that',
+  'it',
+  'task',
+  'tasks',
+  'job',
+  'jobs',
+  'everything',
+  'current',
+  'last',
+  'running',
+  'please',
+  'now',
+  'ok',
+  'okay',
+  'friday',
+  'hey',
+  'sab',
+  'saare',
+  'sare',
+  'saara',
+  'kaam',
+  'yeh',
+  'woh',
+  'wala',
+  'abhi',
+  'karo',
+  'kar',
+  'do',
+  'de',
+  'dijiye',
+  'just',
+  'bhai',
+  'yaar',
+]);
+const CANCEL = [
+  'cancel',
+  'abort',
+  'stop',
+  'chhodo',
+  'chodo',
+  'chhod',
+  'chod',
+  'leave',
+  'forget',
+  'never mind',
+  'nevermind',
+  'rehne',
+  'rehne do',
+];
+
+/** "Cancel all the task", "sab cancel karo", "chhodo", "never mind": drop
+ * whatever Friday is doing (not "cancel the email to Ravi", which is a request). */
+export function isCancelCommand(text: string): boolean {
+  const words = normalise(text).split(' ').filter(Boolean);
+  if (!words.length || words.length > 8) return false;
+  const core = words.filter((word) => !CANCEL_FILLER.has(word)).join(' ');
+  return CANCEL.includes(core);
 }

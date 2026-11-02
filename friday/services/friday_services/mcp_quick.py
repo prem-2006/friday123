@@ -29,7 +29,7 @@ from friday_services.activity import ActivityFeed
 from friday_services.browser import BrowserError, OnScreenBrowser, first_video, nth_video
 from friday_services.desktop import DesktopApps, DesktopError
 from friday_services.files import FilesError, find_files, open_file
-from friday_services.media import MediaError, OwnerMedia
+from friday_services.media import MediaError, OwnerMedia, youtube_window
 from friday_services.meetings import MeetingError, calendar_event_url
 from friday_services.organizer import (
     Notes,
@@ -73,6 +73,32 @@ MediaAction = Literal[
     "rewind",
     "forward",
 ]
+YouTubeAction = Literal[
+    "fullscreen",
+    "exit_fullscreen",
+    "theater",
+    "captions",
+    "mute",
+    "unmute",
+    "faster",
+    "slower",
+    "pause",
+    "play",
+    "next",
+    "previous",
+    "rewind",
+    "forward",
+]
+YOUTUBE_SAID = {
+    "fullscreen": "Full screen.",
+    "exit_fullscreen": "Back from full screen.",
+    "theater": "Theater mode.",
+    "captions": "Captions switched.",
+    "mute": "Muted.",
+    "unmute": "Unmuted.",
+    "faster": "Faster.",
+    "slower": "Slower.",
+}
 MEDIA_SAID = {
     "pause": "Paused.",
     "play": "Playing.",
@@ -339,6 +365,41 @@ def build_quick_server(
 
         done = await act("media_control", f"Media: {action.replace('_', ' ')}.", run)
         say = MEDIA_SAID[action]
+        if action in ("rewind", "forward"):
+            say = f"{'Back' if action == 'rewind' else 'Ahead'} {seconds} seconds."
+        return {**done, "friday_say": say}
+
+    @server.tool(
+        name="youtube_control",
+        description=(
+            "In YouTube (the YouTube app or a browser tab with YouTube), the one the "
+            "owner used last: fullscreen, exit_fullscreen, theater, captions, mute, "
+            "unmute, faster, slower, pause, play, next, previous, rewind, forward. While "
+            "the owner is on YouTube, 'full screen', 'mute', 'next' and so on mean the "
+            "video: use this, never snap_window or press_keys_in_app. in_front: act only "
+            "if YouTube is the window in front."
+        ),
+        annotations=ACT,
+    )
+    async def youtube_control(
+        action: YouTubeAction,
+        seconds: Annotated[int, Field(ge=1, le=600)] = 10,
+        in_front: bool = False,
+    ) -> dict:
+        if owner_media is None:
+            raise ToolError("I cannot reach YouTube on this PC.")
+        windows = await asyncio.to_thread(winctl.windows)
+        window = youtube_window(windows, in_front)
+        if window is None:
+            if in_front:
+                return {"skipped": True, "friday_say": ""}
+            raise ToolError("YouTube is not open.")
+        done = await act(
+            "youtube_control",
+            f"YouTube: {action.replace('_', ' ')}.",
+            lambda: desktop_worker.run(owner_media.youtube, action, window, seconds),
+        )
+        say = YOUTUBE_SAID.get(action) or MEDIA_SAID[action]
         if action in ("rewind", "forward"):
             say = f"{'Back' if action == 'rewind' else 'Ahead'} {seconds} seconds."
         return {**done, "friday_say": say}
@@ -837,11 +898,30 @@ def build_quick_server(
         name="play_youtube",
         description=(
             "Play a song, video or topic on YouTube in the browser the owner used last: in "
-            "the same tab when it already shows YouTube."
+            "the same tab when it already shows YouTube. A song already on the YouTube page "
+            "is clicked there; it is searched only when it is not on screen."
         ),
         annotations=ACT,
     )
     async def play_youtube(query: Annotated[str, Field(min_length=1, max_length=200)]) -> dict:
+        if owner_media is not None:
+            # Already on the YouTube page the owner is on: click it there; a
+            # search only for a song that is not on screen.
+            shown = youtube_window(await asyncio.to_thread(winctl.windows))
+            if shown:
+                clicked = await act(
+                    "play_in_app",
+                    f'Looking for "{query}" on the YouTube page.',
+                    lambda: desktop_worker.run(
+                        desktop.click_shown_video, shown["hwnd"], 1, query, 1.0
+                    ),
+                )
+                if clicked:
+                    return {
+                        "title": clicked,
+                        "app": "YouTube",
+                        "friday_say": playing_sentence(clicked),
+                    }
         if owner_media is not None and await in_youtube_app():
             # The owner's YouTube app: its own search, then a click on the video.
             found = await asyncio.to_thread(first_video, query)
@@ -928,13 +1008,19 @@ def build_quick_server(
     @server.tool(
         name="play_shown_video",
         description=(
-            "Play a video from the YouTube results the owner is looking at: 'play the first "
-            "video', 'play the second one', 'play the video on the screen'. n is its place "
-            "in the results, 1 for the first."
+            "Play a video that is on the YouTube page the owner is looking at (the app or "
+            "a tab: home, results or the videos beside the one playing), clicked there, "
+            "with no new search: 'play the third video', 'teesra wala chalao'. n is its "
+            "place on the page, 1 for the first. title: the video's title when the owner "
+            "points at one you named ('isko play karo' after you said the third is 'O Re "
+            "Piya'). Never play_youtube for a video already on screen."
         ),
         annotations=ACT,
     )
-    async def play_shown_video(n: Annotated[int, Field(ge=1, le=10)] = 1) -> dict:
+    async def play_shown_video(
+        n: Annotated[int, Field(ge=1, le=30)] = 1,
+        title: Annotated[str, Field(max_length=200)] = "",
+    ) -> dict:
         window = await owner_browser(youtube=True)
         app_window = (
             await desktop_worker.run(desktop.site_window, "YouTube") if owner_media else None
@@ -945,51 +1031,22 @@ def build_quick_server(
             if window.hwnd in order and app_window["hwnd"] in order:
                 if order.index(window.hwnd) < order.index(app_window["hwnd"]):
                     app_window = None
-        if app_window:
-            # The YouTube app's results ("lofi - YouTube"): click the video itself.
-            query = youtube_query(app_window["title"])
-            if not query and n == 1:
-                # The home page: its first video.
-                title = await act(
-                    "play_in_app",
-                    "Playing the first video in the YouTube app.",
-                    lambda: desktop_worker.run(desktop.click_first_video, app_window["hwnd"]),
-                )
-                if not title:
-                    raise ToolError("I could not see a video in the YouTube app.")
-                return {"title": title, "app": "YouTube", "friday_say": playing_sentence(title)}
-            if not query:
-                raise ToolError("I can only pick from search results. Tell me what to search.")
-            found = await asyncio.to_thread(nth_video, query, n)
-            if not found:
-                raise ToolError(f'I could not find video {n} for "{query}".')
-            done = await act(
-                "play_in_app",
-                f"Playing video {n} in the YouTube app.",
-                lambda: desktop_worker.run(desktop.search_and_click, "YouTube", "", found[1]),
+        shown = app_window or (
+            {"hwnd": window.hwnd, "title": window.title} if window and window.on_youtube else None
+        )
+        if shown:
+            # The page as it is: click that video there, no new search.
+            which = f'"{title}"' if title else f"video {n}"
+            clicked = await act(
+                "play_in_app" if app_window else "play_in_browser",
+                f"Playing {which} on the YouTube page.",
+                lambda: desktop_worker.run(desktop.click_shown_video, shown["hwnd"], n, title),
             )
-            if not done["clicked"]:
-                raise ToolError(f"I could not see video {n} in the YouTube app.")
-            return {"title": found[1], "app": "YouTube", "friday_say": playing_sentence(found[1])}
-        if window and window.on_youtube:
-            query = youtube_query(window.title)
-            if not query:
-                raise ToolError("I can only pick from search results. Tell me what to search.")
-            found = await asyncio.to_thread(nth_video, query, n)
-            if not found:
-                raise ToolError(f'I could not find video {n} for "{query}".')
-            url = f"https://www.youtube.com/watch?v={found[0]}"
-            await act(
-                "play_in_browser",
-                f"Playing video {n} in {window.name}.",
-                lambda: desktop_worker.run(owner_media.open_url, url, window, True),
-            )
-            return {
-                "title": found[1],
-                "url": url,
-                "browser": window.name,
-                "friday_say": playing_sentence(found[1]),
-            }
+            if clicked:
+                return {"title": clicked, "app": "YouTube", "friday_say": playing_sentence(clicked)}
+            if title:
+                raise ToolError(f'I could not see "{title}" on the YouTube page.')
+            raise ToolError(f"I could not see video {n} on the YouTube page.")
         if owner_media is not None and searched["youtube"]:
             # The results Friday opened, in a window it cannot see right now.
             found = await asyncio.to_thread(nth_video, searched["youtube"], n)
@@ -1140,7 +1197,8 @@ def build_quick_server(
             "Move an open window: a half or quarter of a screen, the center, maximize or "
             f"minimize. Positions: {', '.join(POSITIONS)}. screen: laptop (the built-in "
             "panel), monitor (the external display) or current. The window is found by its "
-            "app ('chrome', 'notepad'), process or part of its title."
+            "app ('chrome', 'notepad'), process or part of its title. Not for 'full "
+            "screen' while the owner is on YouTube: that is youtube_control."
         ),
         annotations=ACT,
     )

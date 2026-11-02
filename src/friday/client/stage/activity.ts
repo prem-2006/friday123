@@ -87,5 +87,8 @@ export async function setStopped(stopped: boolean) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...ownerHeaders() },
     body: '{}',
+    // Never hold up a stop or a new request: the services lift a stop by
+    // themselves after a few seconds anyway.
+    signal: AbortSignal.timeout(3000),
   }).catch(() => {});
 }

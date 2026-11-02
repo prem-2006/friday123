@@ -68,6 +68,10 @@ export function fridayActivityRoutes({
   app.post('/friday/activity/resume', () => relay('/activity/resume', 'POST'));
   // "Hey Friday" or a double clap: the wake greeting is spoken, listen now.
   app.post('/friday/wake/ready', () => relay('/wake/ready', 'POST'));
+  // "Stop": a double clap no longer wakes Friday, until "Hey Friday".
+  app.post('/friday/wake/stopped', async (c) =>
+    relay('/wake/stopped', 'POST', undefined, await c.req.text()),
+  );
   // Friday's main page: its Google account and one-click shortcuts.
   app.get('/friday/account/google', () => relay('/account/google'));
   app.post('/friday/account/google/connect', async (c) =>

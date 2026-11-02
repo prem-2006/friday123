@@ -129,6 +129,17 @@ app.use('*', async (c, next) => {
   await next();
 });
 app.get('/api/*', (c) => c.json({ error: 'Not found.' }, 404));
+// In development the pages come from Vite: send them there instead of serving
+// a stale dist/client whose requests this server would refuse as cross-origin.
+const devClient =
+  process.env.NODE_ENV === 'development'
+    ? resolveAppOrigins(process.env.APP_ORIGIN, process.env.NODE_ENV)?.[0]
+    : undefined;
+if (devClient)
+  app.get('*', (c) => {
+    const url = new URL(c.req.url);
+    return c.redirect(`${devClient}${url.pathname}${url.search}`, 302);
+  });
 app.use('/*', serveStatic({ root: './dist/client' }));
 app.get('*', serveStatic({ path: './dist/client/index.html' }));
 const server = serve({ fetch: app.fetch, hostname: host, port }, (info) => {

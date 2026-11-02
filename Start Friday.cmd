@@ -36,7 +36,7 @@ if defined WAS (
 )
 
 cd /d "%DESKTOP%"
-start "" "%ELECTRON%" .
+start "" "%ELECTRON%" . --open
 echo Friday is starting: the notch, then the app on localhost and the services.
 echo Waiting for the notch...
 

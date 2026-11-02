@@ -56,7 +56,8 @@ for (const link of places) {
     '$shell = New-Object -ComObject WScript.Shell',
     `$link = $shell.CreateShortcut(${quote(link)})`,
     `$link.TargetPath = ${quote(electron)}`,
-    `$link.Arguments = ${quote(`"${here}"`)}`,
+    // --open: the main page opens as an app window (and starts Friday if needed).
+    `$link.Arguments = ${quote(`"${here}" --open`)}`,
     `$link.WorkingDirectory = ${quote(here)}`,
     `$link.IconLocation = ${quote(path.join(here, 'icon.ico'))}`,
     "$link.Description = 'Friday: hold Caps Lock to talk'",
@@ -72,5 +73,5 @@ for (const link of places) {
   console.log(`Created ${link}`);
 }
 console.log(
-  'Open "Friday" from the Start menu. The notch appears above the taskbar.',
+  'Open "Friday" from the desktop or the Start menu: the main page opens as an app, and the notch appears above the taskbar.',
 );

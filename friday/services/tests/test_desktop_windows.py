@@ -23,7 +23,9 @@ def test_an_installed_site_is_not_its_browser():
     assert app_window_belongs(CHROME, tab)
     assert not app_window_belongs(CHROME, app_window)
     assert app_window_belongs(CHATGPT, win("ChatGPT", "ChatGPT", "ChatGPT"))
-    assert not app_window_belongs(CHATGPT, win("ChatGPT - Google Chrome", "chrome", "Google Chrome"))
+    assert not app_window_belongs(
+        CHATGPT, win("ChatGPT - Google Chrome", "chrome", "Google Chrome")
+    )
 
 
 def apps(windows):
@@ -41,7 +43,11 @@ def apps(windows):
 
 def test_an_open_app_comes_to_the_front_instead_of_a_second_copy():
     desktop, launched, brought, _ = apps([win("YouTube", "chrome", "Google Chrome", hwnd=7)])
-    assert desktop.open("YouTube") == {"opened": "YouTube", "window": "YouTube", "already_open": True}
+    assert desktop.open("YouTube") == {
+        "opened": "YouTube",
+        "window": "YouTube",
+        "already_open": True,
+    }
     assert brought == [7] and launched == []
 
 
@@ -72,3 +78,27 @@ def test_the_search_a_youtube_window_shows():
     assert youtube_query("YouTube - lofi beats - YouTube") == "lofi beats"  # the app
     assert youtube_query("(2) lofi - YouTube - Google Chrome") == "lofi"  # a tab
     assert youtube_query("YouTube - (10) YouTube") == ""  # the app's home page
+
+
+def test_videos_on_the_page_are_picked_as_shown_not_searched():
+    from friday_services.desktop import pick_video, shown_videos
+
+    links = [
+        ("a", "Home"),
+        ("b", "4 minutes, 20 seconds"),  # a thumbnail: no title
+        ("c", "Jo Tum Mere Ho 4 minutes, 20 seconds"),
+        ("d", "Jo Tum Mere Ho 4 minutes, 20 seconds"),  # its title link: the same video
+        ("e", "Mix – Lofi songs"),
+        ("f", "O Re Piya Lofi | Slowed + Reverb 3 minutes, 5 seconds"),
+    ]
+    videos = shown_videos(links)
+    assert [name for _, name in videos] == [
+        "Jo Tum Mere Ho",
+        "Mix – Lofi songs",
+        "O Re Piya Lofi | Slowed + Reverb",
+    ]
+    assert pick_video(videos, 3)[0] == "f"
+    assert pick_video(videos, 9) is None
+    assert pick_video(videos, title="O Re Piya Lofi")[0] == "f"
+    assert pick_video(videos, title="slowed + reverb")[0] == "f"
+    assert pick_video(videos, title="Kesariya") is None

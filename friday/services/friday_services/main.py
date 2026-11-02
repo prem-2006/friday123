@@ -626,6 +626,14 @@ def create_app(
             listener.trigger()
         return {"listening": bool(listener)}
 
+    # "Stop" / "Hey Friday" on the voice screen: while stopped, a double clap
+    # does not wake Friday (a clap-like noise would undo the stop).
+    @app.post("/wake/stopped", dependencies=[Depends(owner)])
+    async def wake_stopped(request: Request) -> dict[str, bool]:
+        body = await request.json()
+        wake_ref["stopped"] = bool(isinstance(body, dict) and body.get("stopped"))
+        return {"stopped": wake_ref["stopped"]}
+
     # What the wake word and the clap detector heard lately: for finding out
     # why a "Hey Friday" or a double clap did not work.
     @app.get("/wake/status", dependencies=[Depends(owner)])
@@ -1034,7 +1042,11 @@ def start_wake(
         loop.call_soon_threadsafe(feed.signal, action)
 
     def clapped() -> None:
-        # The same as "Hey Friday": a greeting, then listening.
+        # The same as "Hey Friday": a greeting, then listening. Not after the
+        # owner said "stop": then only "Hey Friday" brings Friday back.
+        if wake_ref is not None and wake_ref.get("stopped"):
+            print("Wake: double clap ignored (Friday was told to stop)")
+            return
         listener.wake()
 
     def greet() -> bool:

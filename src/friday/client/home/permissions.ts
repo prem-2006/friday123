@@ -36,6 +36,7 @@ export const ABILITIES: Ability[] = [
           'play_youtube',
           'web_search',
           'play_shown_video',
+          'youtube_control',
           'weather',
           'directions',
         ],

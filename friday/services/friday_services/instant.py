@@ -129,6 +129,31 @@ IN_BROWSER = (
 )
 HINDI_PLAY = r"bajao|baja do|play karo|play kar do|laga do|lagao|chalao|chala do"
 HINDI_SEARCH = r"search karo|search kar do|dhundo|dhoondo|google karo"
+# YouTube's player, said with filler around it ("video ko full screen karo").
+YOUTUBE_NAMES = {"video", "youtube", "yt", "vid"}
+YOUTUBE_FILLER = YOUTUBE_NAMES | {
+    "please", "friday", "the", "it", "this", "is", "ko", "ka", "ki", "ke", "karo", "kar",
+    "do", "kardo", "de", "dena", "mode", "me", "mein", "main", "par", "pe", "make", "go",
+    "put", "ise", "isko", "iss", "ab", "zara", "turn", "switch", "in", "into", "to", "jao",
+    "ho", "on", "chalu",
+}  # fmt: skip
+YOUTUBE_ASKS = [
+    (r"(?:exit|leave|band|off|hatao|close|escape)(?: (?:from|se|of))? full ?screen"
+     r"|full ?screen (?:band|off|hatao|exit|se bahar|se nikalo|close)|normal screen|escape",
+     "exit_fullscreen"),
+    (r"full ?screen|full|bada", "fullscreen"),
+    (r"theat(?:er|re)", "theater"),
+    (r"(?:captions?|subtitles?|cc)(?: (?:off|band|hatao|dikhao|lagao))?", "captions"),
+    (r"mute", "mute"),
+    (r"unmute|awaaz (?:wapas|chalu)", "unmute"),
+    (r"faster|speed (?:up|badhao|bada)|tez|fast", "faster"),
+    (r"slower|slow|speed (?:down|kam)|dheere|dheema", "slower"),
+    (r"next|agla|agli|skip", "next"),
+    (r"previous|pichla|pichli|back", "previous"),
+]  # fmt: skip
+# Said without "video" or "YouTube", these are someone else's (the PC's
+# volume, the next song in Spotify).
+YOUTUBE_NEEDS_NAME = {"mute", "unmute", "next", "previous", "faster", "slower"}
 # "the second video": its place in the results on screen.
 ORDINALS = {
     "first": 1, "1st": 1, "top": 1, "pehla": 1, "pehli": 1, "pehle": 1,
@@ -422,6 +447,7 @@ class Instant:
         for rule in (
             self._mail,
             self._status,
+            self._youtube,
             self._media,
             self._volume,
             self._search,
@@ -483,6 +509,29 @@ class Instant:
         hinglish = bool(re.search(HINGLISH, t))
         done: list = []
         result = await self._call("system_status", {"ask": ask, "hinglish": hinglish}, done)
+        return {"say": result.get("friday_say") or "Done.", "calls": done}
+
+    async def _youtube(self, t: str, _text: str):
+        """ "Full screen", "captions on", "video mute karo" while on YouTube:
+        YouTube's own keys in the YouTube app or tab. Without "video" or
+        "YouTube" in it, only while YouTube is in front ("full screen" on
+        anything else is a window move)."""
+        if MORE.search(t) or len(t.split()) > 8:
+            return None
+        words = t.split()
+        named = any(w in YOUTUBE_NAMES for w in words)
+        core = " ".join(w for w in words if w not in YOUTUBE_FILLER)
+        action = next(
+            (name for pattern, name in YOUTUBE_ASKS if re.fullmatch(pattern, core)), None
+        )
+        if not action or (action in YOUTUBE_NEEDS_NAME and not named):
+            return None
+        done: list = []
+        result = await self._call(
+            "youtube_control", {"action": action, "in_front": not named}, done
+        )
+        if result.get("skipped"):
+            return None
         return {"say": result.get("friday_say") or "Done.", "calls": done}
 
     async def _media(self, t: str, _text: str):
@@ -571,8 +620,22 @@ class Instant:
             rf"(?: (?:{HINDI_PLAY}|play|karo|kholo))?",
             t,
         )
+        # "3rd number ka play karo", "teesra wala chalao", "number 3 video".
+        loose = re.fullmatch(
+            rf"(?:(?P<verb1>play|open|click(?: on)?|start) )?(?:the )?(?:number )?"
+            rf"(?P<n>{place}|\d{{1,2}}(?:st|nd|rd|th)?)(?: number)?"
+            r"(?: (?:ka|ki|ke|wala|vaala|vala|waala|wali|waali|vaali))?"
+            r"(?: (?P<noun>video|result|one|song|link|gaana|wala|vaala))?"
+            rf"(?: (?P<verb2>{HINDI_PLAY}|play|play karo|play kar do|karo|kholo))?",
+            t,
+        )
         if m:
             n = ORDINALS[m[1]]
+        elif loose and (loose["verb1"] or loose["noun"] or loose["verb2"]):
+            word = loose["n"]
+            n = ORDINALS.get(word) or int(re.sub(r"\D", "", word))
+            if not 1 <= n <= 30:
+                return None
         elif re.fullmatch(
             r"(?:play|open|click(?: on)?|start) (?:the |this |that )?(?:video|one)"
             r"(?: (?:which|that) (?:is|'s))?(?: (?:visible|shown|showing|open))?"

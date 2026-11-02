@@ -25,6 +25,7 @@ def test_quick_tools_and_which_only_look(server):
     assert set(tools) == {
         "open_app",
         "close_app",
+        "youtube_control",
         "write_in_app",
         "clear_in_app",
         "press_keys_in_app",

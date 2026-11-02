@@ -16,6 +16,7 @@ Friday's own Chrome (its profile folder) is driven through Playwright instead.
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -42,6 +43,43 @@ YOUTUBE_KEYS = {
     "forward": "l",  # 10 s ahead
 }
 SECONDS = 10
+# The rest of YouTube's player keys (youtube_control): full screen, captions…
+YOUTUBE_PLAYER_KEYS = {
+    **YOUTUBE_KEYS,
+    "fullscreen": "f",
+    "exit_fullscreen": "{ESC}",
+    "theater": "t",
+    "captions": "c",
+    "mute": "m",
+    "unmute": "m",
+    "faster": "+.",
+    "slower": "+,",
+}
+
+
+def shows_youtube(window: dict[str, Any]) -> bool:
+    """A window showing YouTube: the YouTube app ("YouTube - <video>") or a
+    browser tab ("<video> - YouTube - Google Chrome")."""
+    title = window.get("title") or ""
+    return f"{window.get('proc', '')}.exe".casefold() in BROWSERS and (
+        title == "YouTube" or title.startswith("YouTube - ") or " - YouTube" in title
+    )
+
+
+def youtube_window(windows: list[dict[str, Any]], in_front: bool = False) -> dict[str, Any] | None:
+    """The YouTube window to act in, the one used last. in_front: only when it
+    is the owner's window in front (Friday's own windows aside), so "full
+    screen" means the video only while the owner is on YouTube."""
+    for window in windows:
+        if window.get("proc", "").casefold() == "electron" or (
+            window.get("title") or ""
+        ).startswith("Friday"):
+            continue  # the notch, the toast, the voice screen
+        if shows_youtube(window):
+            return window
+        if in_front:
+            return None
+    return None
 
 
 class MediaError(RuntimeError):
@@ -220,6 +258,17 @@ class OwnerMedia:
         for _ in range(presses):
             self._keys(YOUTUBE_KEYS[action])
         return {"title": window.title.split(" - YouTube")[0], "app": window.name}
+
+    def youtube(
+        self, action: str, window: dict[str, Any], seconds: int = SECONDS
+    ) -> dict[str, Any]:
+        """Press YouTube's own key for it in that YouTube window (app or tab)."""
+        self._focus(window["hwnd"])
+        presses = max(1, round(seconds / SECONDS)) if action in ("rewind", "forward") else 1
+        for _ in range(presses):
+            self._keys(YOUTUBE_PLAYER_KEYS[action])
+        title = re.sub(r"^YouTube - |\s*- YouTube.*$|^\(\d+\)\s*", "", window["title"])
+        return {"title": title, "app": "YouTube"}
 
     def open_url(self, url: str, window: BrowserWindow, same_tab: bool) -> None:
         """Open a page in that browser window: in its current tab, or a new one."""

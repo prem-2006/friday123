@@ -55,10 +55,15 @@ if (!app.requestSingleInstanceLock()) {
   notchLog('another notch is already running; leaving it');
   app.exit(0);
 }
-// Started again while running: show the notch if it was hidden.
-app.on('second-instance', () => {
+// Started again while running: show the notch if it was hidden, and the main
+// window when the Friday shortcut asked for it.
+app.on('second-instance', (_event, argv) => {
   if (liveNotch() && !notch.isVisible()) notch.showInactive();
+  if (wantsMain(argv)) openMain('#/home');
 });
+
+// The main window shows in the taskbar as "Friday", with Friday's icon.
+app.setAppUserModelId('Friday');
 
 // Friday speaks without anyone clicking first.
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
@@ -90,9 +95,9 @@ function start(name, command, args, cwd) {
     // Python writes its log lines at once instead of holding them back.
     env: { ...process.env, PYTHONUNBUFFERED: '1' },
     stdio: ['ignore', log, log],
-    // Its own hidden console: closing the Start Friday window must not take
-    // the app and the services down with it.
-    detached: true,
+    // Not detached: a detached child loses these log handles (the app server
+    // then dies on its first log line). Start Friday.cmd keeps the notch off
+    // its window's console instead (ELECTRON_NO_ATTACH_CONSOLE).
     windowsHide: true,
     shell: process.platform === 'win32',
   });
@@ -185,9 +190,67 @@ function createToast() {
   toast.webContents.on('render-process-gone', reload);
 }
 
+// Friday's main page in its own app window (taskbar icon, no browser tab).
+// One window: opening it again brings it to the front on that page. Closing
+// it leaves the notch and the voice running.
+let main = null;
+const liveMain = () => (main && !main.isDestroyed() ? main : null);
+const isLocal = (url) => {
+  try {
+    return ['localhost', '127.0.0.1'].includes(new URL(url).hostname);
+  } catch {
+    return false;
+  }
+};
+
 function openMain(hash = '#/home') {
-  void shell.openExternal(`${WEB}/${hash}`);
+  const url = `${WEB}/${hash}`;
+  if (liveMain()) {
+    if (main.isMinimized()) main.restore();
+    if (!main.webContents.getURL().endsWith(hash)) void main.loadURL(url);
+    main.show();
+    main.focus();
+    return;
+  }
+  const { workArea } = screen.getPrimaryDisplay();
+  main = new BrowserWindow({
+    width: Math.min(1280, workArea.width - 80),
+    height: Math.min(860, workArea.height - 60),
+    minWidth: 420,
+    minHeight: 520,
+    title: 'Friday',
+    icon: path.join(__dirname, 'icon.ico'),
+    autoHideMenuBar: true,
+    backgroundColor: '#0b0b0f',
+    show: false,
+    webPreferences: { preload: path.join(__dirname, 'preload.cjs') },
+  });
+  main.removeMenu();
+  main.on('closed', () => {
+    main = null;
+  });
+  main.once('ready-to-show', () => liveMain()?.show());
+  // Friday's own pages stay in the app; other sites open in the browser.
+  main.webContents.setWindowOpenHandler(({ url }) => {
+    if (isLocal(url)) return { action: 'allow' };
+    void shell.openExternal(url);
+    return { action: 'deny' };
+  });
+  main.webContents.on('will-navigate', (event, url) => {
+    if (isLocal(url)) return;
+    event.preventDefault();
+    void shell.openExternal(url);
+  });
+  // The dev server restarting: try the page again.
+  main.webContents.on('did-fail-load', (_e, code) => {
+    if (code !== -3)
+      setTimeout(() => void liveMain()?.loadURL(url), 2000);
+  });
+  void main.loadURL(url);
 }
+
+// "Friday.exe --open" (the Friday shortcut): open the main window too.
+const wantsMain = (argv) => argv.some((arg) => arg === '--open');
 
 // The notch window, or null once it is closed: a message from its page can
 // still arrive while the window is going away, and a closed window throws.
@@ -374,6 +437,7 @@ app.whenReady().then(async () => {
   await ensureFriday();
   createNotch();
   createToast();
+  if (wantsMain(process.argv)) openMain('#/home');
   watchSelf();
   watchNotch();
   setInterval(() => void keepFridayRunning(), 30_000);

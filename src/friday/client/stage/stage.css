@@ -734,5 +734,14 @@
     inset 0 -1px 0 rgba(6, 24, 38, 0.5),
     0 8px 24px -8px rgba(47, 160, 198, 0.7);
 }
+/* The main page's sci-fi backdrop (grid floor, data motes, scan beam, HUD
+   corners) sits behind the orb. */
+.friday-stage .home-holo {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
 /* palette: end */
 /* theme: end */
