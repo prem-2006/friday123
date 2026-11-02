@@ -190,13 +190,14 @@ type Phase =
 // hands-free, and after Caps Lock is let go (its 1 s silence tail + network).
 const HEARD_PAUSE_MS = 700;
 
-/** Always-on conversation on the notch: on unless turned off
- * (localStorage friday-always-on = "off"). */
+/** Always-on conversation on the notch: off for now, the notch hears only
+ * while Caps Lock is held (localStorage friday-always-on = "on" brings it
+ * back). */
 function alwaysListening() {
   try {
-    return localStorage.getItem('friday-always-on') !== 'off';
+    return localStorage.getItem('friday-always-on') === 'on';
   } catch {
-    return true;
+    return false;
   }
 }
 const RELEASE_WAIT_MS = 1800;
@@ -1011,7 +1012,9 @@ function StageSession({
       // its own voice would wake it again).
       await speak('Theek hai, main band ho gayi.', true);
       setSubtitle(
-        'Stopped. Say “Hey Friday” or hold Caps Lock when you need me.',
+        alwaysOn
+          ? 'Stopped. Say “Hey Friday” or hold Caps Lock when you need me.'
+          : 'Stopped. Hold Caps Lock when you need me.',
       );
       return;
     }

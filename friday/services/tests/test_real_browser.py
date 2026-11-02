@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from friday_services import browser as browser_module
 from friday_services.browser import BrowserError, OnScreenBrowser
 
 CHROME = Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe")
@@ -75,7 +76,34 @@ def test_search_types_in_youtubes_box_and_ranks_results(tmp_path):
         browser.close()
 
 
-def test_play_youtube_opens_the_first_full_video(tmp_path):
+def test_play_youtube_goes_straight_to_the_video_it_looked_up(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        browser_module, "first_video", lambda query: ("v1", "Python full course for beginners")
+    )
+    browser = OnScreenBrowser(tmp_path / "profile", headless=True)
+    try:
+        browser._page()
+        opened: list[str] = []
+
+        def serve(route):
+            opened.append(route.request.url)
+            html = "<!doctype html><title>Python full course - YouTube</title>"
+            route.fulfill(status=200, content_type="text/html", body=html)
+
+        browser._context.route("https://www.youtube.com/**", serve)
+        played = browser.play_youtube("python course")
+        assert played == {
+            "title": "Python full course for beginners",
+            "url": "https://www.youtube.com/watch?v=v1",
+        }
+        # The lookup already found it: no results page in the window.
+        assert [u.split("?")[0] for u in opened] == ["https://www.youtube.com/watch"]
+    finally:
+        browser.close()
+
+
+def test_play_youtube_uses_the_results_page_when_the_lookup_fails(tmp_path, monkeypatch):
+    monkeypatch.setattr(browser_module, "first_video", lambda query: None)
     browser = OnScreenBrowser(tmp_path / "profile", headless=True)
     try:
         browser._page()
