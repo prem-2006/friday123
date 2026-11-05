@@ -43,7 +43,6 @@ import { LiveVoice, type LiveEvent } from './liveVoice';
 import { Notch, type NotchState } from './Notch';
 import { ACTOR_NAMES, narrate, type ActivityEvent } from './narration';
 import { Orb, type OrbMode } from './Orb';
-import { HoloScene } from '../home/HoloScene';
 import './stage.css';
 
 export const STAGE_HASH = '#/friday';
@@ -1461,7 +1460,6 @@ function StageSession({
   }
   return (
     <div className={`friday-stage mode-${mode}`}>
-      <HoloScene />
       <Orb
         mode={mode}
         level={level}

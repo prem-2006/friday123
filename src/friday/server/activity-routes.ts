@@ -72,6 +72,11 @@ export function fridayActivityRoutes({
   app.post('/friday/wake/stopped', async (c) =>
     relay('/wake/stopped', 'POST', undefined, await c.req.text()),
   );
+  // The people saved for "who is this".
+  app.get('/friday/people', () => relay('/people'));
+  app.delete('/friday/people/:name', (c) =>
+    relay(`/people/${encodeURIComponent(c.req.param('name'))}`, 'DELETE'),
+  );
   // Friday's main page: its Google account and one-click shortcuts.
   app.get('/friday/account/google', () => relay('/account/google'));
   app.post('/friday/account/google/connect', async (c) =>

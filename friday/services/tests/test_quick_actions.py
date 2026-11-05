@@ -55,6 +55,7 @@ def test_quick_tools_and_which_only_look(server):
         "system_status",
         "lock_screen",
         "take_screenshot",
+        "daily_briefing",
         "weather",
         "directions",
         "draft_email",

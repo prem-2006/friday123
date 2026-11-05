@@ -180,6 +180,27 @@ def test_instant_route_runs_friday_quick_tools(server):
     assert httpx.post(f"{server.url}/instant", json={"text": "x"}).status_code == 401
 
 
+def test_who_is_this_runs_without_the_model(friday):
+    for text, hinglish in [("Who is this?", False), ("ye kaun hai", True), ("isko pehchano", True)]:
+        assert ask(friday, text)["calls"] == [
+            {"tool": "who_is_this", "args": {"hinglish": hinglish}}
+        ], text
+    assert ask(friday, "who is this song by") is None
+
+
+def test_briefing_asks_run_without_the_model(friday):
+    for text, hinglish in [
+        ("brief me", False),
+        ("what is my day like", False),
+        ("aaj ka briefing do", True),
+        ("aaj ka plan kya hai", True),
+    ]:
+        assert ask(friday, text)["calls"] == [
+            {"tool": "daily_briefing", "args": {"hinglish": hinglish}}
+        ], text
+    assert ask(friday, "write a briefing for my boss and send it") is None
+
+
 def test_time_date_and_battery_questions_get_only_that(friday):
     asks = {
         "what is the time": ("time", False),

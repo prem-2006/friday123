@@ -14,33 +14,7 @@
     system-ui,
     -apple-system,
     sans-serif;
-  background:
-    radial-gradient(
-      120% 70% at 50% 118%,
-      rgba(47, 160, 198, 0.22) 0%,
-      transparent 55%
-    ),
-    radial-gradient(ellipse at 50% 52%, #0f3550 0%, #061826 48%, #020b13 100%);
-}
-.friday-stage::before {
-  /* fine star dust */
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image:
-    radial-gradient(1px 1px at 20% 30%, rgba(255, 255, 255, 0.35), transparent),
-    radial-gradient(1px 1px at 70% 20%, rgba(255, 255, 255, 0.25), transparent),
-    radial-gradient(1px 1px at 85% 70%, rgba(255, 255, 255, 0.3), transparent),
-    radial-gradient(1px 1px at 35% 80%, rgba(255, 255, 255, 0.2), transparent),
-    radial-gradient(
-      1.5px 1.5px at 55% 60%,
-      rgba(189, 229, 255, 0.45),
-      transparent
-    );
-  background-size: 420px 420px;
-  animation: stage-drift 120s linear infinite;
-  opacity: 0.6;
-  pointer-events: none;
+  background: #161715;
 }
 .friday-stage::after {
   /* a slow aurora whose colour follows what Friday is doing */
@@ -733,15 +707,6 @@
     inset 0 1px 0 rgba(222, 244, 255, 0.6),
     inset 0 -1px 0 rgba(6, 24, 38, 0.5),
     0 8px 24px -8px rgba(47, 160, 198, 0.7);
-}
-/* The main page's sci-fi backdrop (grid floor, data motes, scan beam, HUD
-   corners) sits behind the orb. */
-.friday-stage .home-holo {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  overflow: hidden;
-  pointer-events: none;
 }
 /* palette: end */
 /* theme: end */

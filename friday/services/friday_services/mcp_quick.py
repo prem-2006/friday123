@@ -26,6 +26,7 @@ from pydantic import Field
 
 from friday_services import winctl
 from friday_services.activity import ActivityFeed
+from friday_services.briefing import briefing_sentence, owner_city
 from friday_services.browser import BrowserError, OnScreenBrowser, first_video, nth_video
 from friday_services.desktop import DesktopApps, DesktopError
 from friday_services.files import FilesError, find_files, open_file
@@ -46,6 +47,7 @@ from friday_services.organizer import (
     take_screenshot,
     weather,
 )
+from friday_services.people import PeopleError, who_sentence
 from friday_services.screen import POSITIONS, Position, Screen, ScreenError
 from friday_services.sites import site_name
 from friday_services.volume import Volume, VolumeError, volume_sentence
@@ -56,6 +58,7 @@ ACT = ToolAnnotations(read_only_hint=False, destructive_hint=False)
 SENDS = ToolAnnotations(read_only_hint=False, destructive_hint=True)
 LOOK = ToolAnnotations(read_only_hint=True)
 FAILURES = (
+    PeopleError,
     BrowserError,
     DesktopError,
     ScreenError,
@@ -174,6 +177,8 @@ def build_quick_server(
     chrome: Callable[[], Any] | None = None,
     mail_map: Any = None,
     summarise: Callable[[list[dict], bool], Awaitable[str | None]] | None = None,
+    research: Any = None,
+    people: Any = None,
 ) -> MCPServer:
     volume = volume or Volume()
     server = MCPServer(
@@ -716,6 +721,40 @@ def build_quick_server(
         }
 
     @server.tool(
+        name="daily_briefing",
+        description=(
+            "The owner's day in one go, spoken: 'aaj ka briefing do', 'brief me', 'what is my "
+            "day like', 'aaj ka plan kya hai'. Says the date, the weather, what is due today "
+            "and how much email is unread. hinglish: true when the owner spoke Hindi or "
+            "Hinglish."
+        ),
+        annotations=LOOK,
+    )
+    async def daily_briefing(hinglish: bool = False) -> dict:
+        def unread_mail() -> int | None:
+            try:
+                return mail_map.refresh()[0]
+            except Exception:
+                return None
+
+        def city_weather() -> str:
+            city = owner_city()
+            try:
+                return weather(city) if city else ""
+            except Exception:
+                return ""
+
+        async def gather() -> str:
+            items, forecast, unread = await asyncio.gather(
+                asyncio.to_thread(reminders.upcoming),
+                asyncio.to_thread(city_weather),
+                browser_worker.run(unread_mail) if mail_map is not None else asyncio.sleep(0),
+            )
+            return briefing_sentence(datetime.now(), items, forecast, unread, hinglish)
+
+        return {"friday_say": await act("daily_briefing", "Your briefing.", gather)}
+
+    @server.tool(
         name="weather",
         description="Today's weather for a city, spoken.",
         annotations=LOOK,
@@ -1176,6 +1215,144 @@ def build_quick_server(
         on = f" on the {screen}" if screen != "current" else ""
         name = placed.get("app") or placed.get("window") or window
         return {**placed, "friday_say": f"{_short(name, 40)} is {where}{on}."}
+
+    if people is not None:
+
+        @server.tool(
+            name="who_is_this",
+            description=(
+                "Look through the camera and say who is in front of it, from the people the "
+                "owner saved: 'who is this', 'ye kaun hai', 'isko pehchano'. Someone not saved "
+                "is reported as not saved: never guess a name or search for them anywhere. "
+                "hinglish: true when the owner spoke Hindi or Hinglish."
+            ),
+            annotations=LOOK,
+        )
+        async def who_is_this(hinglish: bool = False) -> dict:
+            async def look() -> dict:
+                return await asyncio.to_thread(people.who)
+
+            seen = await act("who_is_this", "Looking through the camera.", look)
+            said = who_sentence(seen["names"], hinglish)
+            if seen["image"]:
+                feed.emit("friday", "who_is_this", said, state="done", image=seen["image"])
+            return {"names": seen["names"], "scores": seen["scores"], "friday_say": said}
+
+        @server.tool(
+            name="remember_person",
+            description=(
+                "Save the one person in front of the camera under a name, so 'who is this' "
+                "knows them: 'isko Rahul ke naam se save karo'. Saves face numbers on this PC, "
+                "no photo. Only for someone who has agreed: unless the owner already said so, "
+                "ask whether this person agreed, and pass agreed true only after a yes."
+            ),
+            annotations=ACT,
+        )
+        async def remember_person(
+            name: Annotated[str, Field(min_length=2, max_length=60)],
+            agreed: bool = False,
+        ) -> dict:
+            if not agreed:
+                return {"saved": False, "friday_say": f"Has {name} agreed to be saved?"}
+
+            async def save() -> dict:
+                return await asyncio.to_thread(people.remember, name)
+
+            done = await act("remember_person", f"Saving {name}. Look at the camera.", save)
+            feed.emit(
+                "friday",
+                "remember_person",
+                f"Saved {done['name']}.",
+                state="done",
+                image=done["image"],
+            )
+            return {"saved": True, "friday_say": f"Saved. I will know {done['name']} now."}
+
+        @server.tool(
+            name="forget_person",
+            description="Delete a saved person's face data: 'Rahul ka data hata do'.",
+            annotations=ACT,
+        )
+        async def forget_person(name: Annotated[str, Field(min_length=2, max_length=60)]) -> dict:
+            async def forget() -> str | None:
+                return await asyncio.to_thread(people.saved.forget, name)
+
+            gone = await act("forget_person", f"Forgetting {name}.", forget)
+            return {
+                "forgotten": bool(gone),
+                "friday_say": f"I have deleted {gone}." if gone else f"I have not saved {name}.",
+            }
+
+        @server.tool(
+            name="list_people",
+            description="Say who Friday has saved for 'who is this'.",
+            annotations=LOOK,
+        )
+        async def list_people() -> dict:
+            names = [person["name"] for person in people.saved.listed()]
+            return {
+                "people": names,
+                "friday_say": f"I know {', '.join(names)}."
+                if names
+                else "I have not saved anyone.",
+            }
+
+    if research is not None:
+
+        @server.tool(
+            name="research_topic",
+            description=(
+                "Research a topic on the web in the background and write a report with "
+                "sources: 'research electric scooters in India', 'iske baare mein research "
+                "karke report do', 'compare these suppliers and give me a report'. Nothing "
+                "opens on screen; Friday says when the report is ready. Not for a quick "
+                "search the owner wants to see (web_search) or anything needing their login "
+                "(the helpers). hinglish: true when the owner spoke Hindi or Hinglish."
+            ),
+            annotations=ACT,
+        )
+        async def research_topic(
+            topic: Annotated[str, Field(min_length=3, max_length=200)],
+            hinglish: bool = False,
+        ) -> dict:
+            async def begin() -> bool:
+                return research.start(topic, hinglish)
+
+            started = await act("research_topic", f"Starting research on {topic}.", begin)
+            if not started:
+                return {
+                    "started": False,
+                    "friday_say": (
+                        f"Abhi {research.topic} par research chal rahi hai, uske baad karungi."
+                        if hinglish
+                        else f"I am still researching {research.topic}. Ask me again after that."
+                    ),
+                }
+            return {
+                "started": True,
+                "friday_say": (
+                    "Theek hai, research background mein shuru kar di. Report ready hote hi bataungi."
+                    if hinglish
+                    else "Okay, I started the research in the background. "
+                    "I will tell you when the report is ready."
+                ),
+            }
+
+        @server.tool(
+            name="open_research_report",
+            description="Open Friday's latest research report on screen.",
+            annotations=ACT,
+        )
+        async def open_research_report() -> dict:
+            report = research.latest()
+            if report is None:
+                return {"opened": False, "friday_say": "You have no research reports yet."}
+
+            async def show() -> None:
+                await asyncio.to_thread(open_path, str(report))
+
+            await act("open_research_report", "Opening your research report.", show)
+            return {"opened": True, "friday_say": "Your research report is open."}
 
     if mail_map is not None:
         from friday_services.mail_map import MailError, new_mail_sentence

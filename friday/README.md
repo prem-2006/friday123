@@ -76,6 +76,12 @@ Try saying:
 - "WhatsApp Priya that I'm running ten minutes late." Friday reads the message back; you say yes.
 - "Call Rahul on WhatsApp." Friday starts the call after your yes, and you talk.
 
+## Background research
+
+Say "research electric scooters in India". Friday's `research_topic` tool reads public pages with [Obscura](https://github.com/h4ckf0r0day/obscura), a headless browser, while you keep working; Friday's model writes the report, it is saved with its sources in the vault under `Friday/Research`, and Friday says when it is ready. Chrome stays for anything signed in or meant to be seen.
+
+To install, unzip `obscura-x86_64-windows.zip` from its [releases](https://github.com/h4ckf0r0day/obscura/releases) into `friday/obscura`, then run `npm run friday:setup`. Without it the tools are simply absent.
+
 ## Pages and ports
 
 | What                                                             | Address                              |

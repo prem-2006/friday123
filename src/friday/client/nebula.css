@@ -101,9 +101,7 @@
     .inline-computer,
     .source-card,
     .config-note,
-    .connection-action-card,
-    .friday-home .panel,
-    .friday-home .home-card
+    .connection-action-card
   ) {
   background: var(--nebula-glass);
   backdrop-filter: blur(18px) saturate(140%);
@@ -182,10 +180,7 @@
     .text-button.bordered,
     .suggestion,
     .connection-connect,
-    .page-chat-launch,
-    .friday-home .home-top nav button,
-    .friday-home .chip,
-    .friday-admin .home-top button
+    .page-chat-launch
   ) {
   background: var(--nebula-gunmetal);
   border: 1px solid rgba(189, 229, 255, 0.16);
@@ -196,9 +191,7 @@
   body
   :is(
     .suggestion,
-    .connection-connect,
-    .friday-home .home-top nav button,
-    .friday-home .chip
+    .connection-connect
   ):hover {
   border-color: rgba(88, 201, 243, 0.5);
   box-shadow:
@@ -224,36 +217,4 @@
   scrollbar-color: rgba(88, 201, 243, 0.28) transparent;
 }
 
-/* The main page: the console grid in steel, and a metal Caps Lock key. */
-:root[data-theme='dark'] body .friday-home {
-  --bg: #061826;
-  --panel: rgba(6, 24, 38, 0.6);
-  --line: rgba(189, 229, 255, 0.13);
-  --ink: #e4f3ff;
-  --muted: #8fb4cc;
-  --cyan: #58c9f3;
-  --cyan2: #2fa0c6;
-  --green: #4ca7a1;
-  background: transparent;
-  color: #e4f3ff;
-}
-:root[data-theme='dark'] body .friday-home::before {
-  background:
-    linear-gradient(transparent 0 calc(100% - 1px), rgba(88, 201, 243, 0.05) 0)
-      0 0 / 100% 32px,
-    linear-gradient(
-        90deg,
-        transparent 0 calc(100% - 1px),
-        rgba(88, 201, 243, 0.05) 0
-      )
-      0 0 / 32px 100%;
-}
-:root[data-theme='dark'] body .friday-home .caps {
-  background: var(--nebula-gunmetal);
-  border: 1px solid rgba(189, 229, 255, 0.28);
-  box-shadow:
-    var(--nebula-gunmetal-edge),
-    0 3px 0 #04121d;
-  color: #bde5ff;
-}
 /* palette: end */

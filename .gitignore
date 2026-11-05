@@ -21,3 +21,9 @@ data/
 
 # Added by CopilotKit CLI: browser snapshots a coding agent writes.
 .playwright-mcp/
+
+# Obscura: the downloaded browser for Friday's background research (friday/README.md).
+friday/obscura/
+
+# Graphify: the local code map, rebuilt with `graphify update .`
+graphify-out/

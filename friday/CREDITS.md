@@ -18,6 +18,7 @@ Friday is built on one open-source project, took ideas from two more, and uses a
 
 | Project | What it does for Friday | Where in Friday | License |
 | ------- | ----------------------- | --------------- | ------- |
+| [Obscura](https://github.com/h4ckf0r0day/obscura) | Reads public pages for background research reports, with no window on screen. Stealth mode is not used. | `friday/obscura` (downloaded, not in git), `friday_services/research.py` | Apache-2.0 |
 | [Hermes Agent](https://github.com/NousResearch/hermes-agent) by Nous Research | Navigator's engine for multi-step browser jobs: it works Friday's Chrome over CDP with Friday's model, and keeps its own memory and skills. Installed as a package, not copied. | `friday/hermes-agent/` (`run_task.py`), chosen in `friday/services/friday_services/browser_agent.py` | MIT |
 
 ## 2. Ideas taken and rebuilt (no code copied)

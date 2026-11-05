@@ -62,6 +62,7 @@ from friday_services.organizer import (
 )
 from friday_services.owner_calls import OwnerCaller, owner_phone
 from friday_services.owner_chrome import owner_chrome
+from friday_services.people import People, SavedPeople
 from friday_services.phone_in import (
     PhoneDesk,
     caller_digits,
@@ -69,6 +70,7 @@ from friday_services.phone_in import (
     latest_request,
     same_caller,
 )
+from friday_services.research import Researcher, find_obscura
 from friday_services.screen import capture_screen, describe_screen, snap_window
 from friday_services.tunnel import NgrokTunnel, QuickTunnel, TunnelGuard
 from friday_services.usage import timed, usage
@@ -144,6 +146,8 @@ def create_app(
     usage.configure(settings.data_dir / "usage.json", settings.timezone)
     reminders = Reminders(settings.data_dir / "reminders.json")
     notes = Notes(settings.data_dir / "notes.txt")
+    # "Who is this": only people the owner saved, all on this PC.
+    saved_people = SavedPeople(settings.data_dir / "people.json")
     whatsapp = WhatsApp(whatsapp_ui or DesktopWhatsAppUI(), settings.owner_name)
     # Watches run on their own thread; what they say goes back through the event loop.
     loop_ref: dict[str, asyncio.AbstractEventLoop] = {}
@@ -201,6 +205,18 @@ def create_app(
                 else None
             ),
             summarise=lambda mails, hinglish: summarise_mail(settings, mails, hinglish),
+            people=People(saved_people) if owner_media is not None else None,
+            # Background research needs Obscura (friday/obscura; not in tests).
+            research=(
+                Researcher(
+                    settings,
+                    announce=lambda text: announce(text),
+                    progress=lambda detail: feed.emit("friday", "research", detail),
+                    stopped=lambda: feed.stopped,
+                )
+                if owner_media is not None and find_obscura(settings).exists()
+                else None
+            ),
         ),
         "/calendar": build_calendar_server(calendar, settings.calendar_url),
         "/phone": build_phone_server(
@@ -638,6 +654,16 @@ def create_app(
         body = await request.json()
         wake_ref["stopped"] = bool(isinstance(body, dict) and body.get("stopped"))
         return {"stopped": wake_ref["stopped"]}
+
+    # The main page's list of saved people.
+    @app.get("/people", dependencies=[Depends(owner)])
+    async def people_list() -> list[dict]:
+        return await asyncio.to_thread(saved_people.listed)
+
+    @app.delete("/people/{name}", dependencies=[Depends(owner)])
+    async def people_forget(name: str) -> list[dict]:
+        await asyncio.to_thread(saved_people.forget, name)
+        return await asyncio.to_thread(saved_people.listed)
 
     # What the wake word and the clap detector heard lately: for finding out
     # why a "Hey Friday" or a double clap did not work.

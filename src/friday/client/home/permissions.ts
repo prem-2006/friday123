@@ -35,6 +35,8 @@ export const ABILITIES: Ability[] = [
           'open_website',
           'play_youtube',
           'web_search',
+          'research_topic',
+          'open_research_report',
           'play_shown_video',
           'youtube_control',
           'weather',
@@ -101,6 +103,24 @@ export const ABILITIES: Ability[] = [
     alwaysAsks: true,
     tools: [
       { dot: 'Friday', connection: 'quick', names: ['schedule_meeting'] },
+    ],
+  },
+  {
+    id: 'people',
+    title: 'Recognise people I saved',
+    detail:
+      'Use the camera only when you ask “who is this”. It knows only the people you saved, and their face data stays on this PC.',
+    tools: [
+      {
+        dot: 'Friday',
+        connection: 'quick',
+        names: [
+          'who_is_this',
+          'remember_person',
+          'forget_person',
+          'list_people',
+        ],
+      },
     ],
   },
   {
